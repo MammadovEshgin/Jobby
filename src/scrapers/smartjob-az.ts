@@ -1,7 +1,8 @@
 import { parse } from "node-html-parser";
 
 import type { RawVacancy, Scraper } from "./types";
-import { fetchText } from "../utils/fetch";
+import { FetchHttpError, fetchText } from "../utils/fetch";
+import { logInfo } from "../utils/log";
 
 const BASE_URL = "https://smartjob.az";
 const LISTING_URL = `${BASE_URL}/`;
@@ -10,13 +11,28 @@ const USER_AGENT = "Mozilla/5.0 (compatible; VakansiyaBot/0.1; +https://smartjob
 export const smartJobAzScraper: Scraper = {
   name: "smartjob.az",
   async fetch(): Promise<RawVacancy[]> {
-    const html = await fetchText(LISTING_URL, {
-      timeoutMs: 10_000,
-      headers: {
-        "User-Agent": USER_AGENT,
-        Accept: "text/html",
-      },
-    });
+    let html: string;
+
+    try {
+      html = await fetchText(LISTING_URL, {
+        timeoutMs: 10_000,
+        headers: {
+          "User-Agent": USER_AGENT,
+          Accept: "text/html",
+        },
+      });
+    } catch (error) {
+      if (error instanceof FetchHttpError && error.status === 403) {
+        logInfo("scraper_blocked", {
+          site: "smartjob.az",
+          url: LISTING_URL,
+          status: error.status,
+        });
+        return [];
+      }
+
+      throw error;
+    }
 
     return parseSmartJobAzVacancies(html);
   },

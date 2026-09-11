@@ -4,6 +4,16 @@ export interface FetchTextOptions {
   timeoutMs?: number;
 }
 
+export class FetchHttpError extends Error {
+  constructor(
+    public readonly status: number,
+    public readonly url: string,
+  ) {
+    super(`Fetch failed with HTTP ${status} for ${url}`);
+    this.name = "FetchHttpError";
+  }
+}
+
 const DEFAULT_TIMEOUT_MS = 10_000;
 const DEFAULT_RETRIES = 2;
 
@@ -36,7 +46,7 @@ async function fetchTextOnce(url: string, options: FetchTextOptions): Promise<st
     });
 
     if (!response.ok) {
-      throw new Error(`Fetch failed with HTTP ${response.status} for ${url}`);
+      throw new FetchHttpError(response.status, url);
     }
 
     return await response.text();
