@@ -1,6 +1,6 @@
 import type { RawVacancy, Scraper } from "./types";
 import { dedupeVacanciesByUrl } from "./dedupe";
-import { parseJsonBody } from "./json";
+import { jsonList, parseJsonBody } from "./json";
 import { fetchListingPages, userAgent } from "./pages";
 import { cleanText, optionalText } from "./text";
 
@@ -45,7 +45,7 @@ export function parseBusyAzVacancies(body: string): RawVacancy[] {
   const payload = parseJsonBody<{ vacancies?: BusyVacancy[] }>(body);
   const vacancies: RawVacancy[] = [];
 
-  for (const item of payload?.vacancies ?? []) {
+  for (const item of jsonList(payload?.vacancies)) {
     const title = cleanText(item.job_title);
     const company = cleanText(item.company?.title);
 

@@ -12,7 +12,7 @@ from `master`. Baseline re-measured on the branch: check **pass** · 86/86 tests
 
 | # | Slice | Files | Lines | CC max | Churn | Entry points | Tests | Status |
 |---|---|---|---|---|---|---|---|---|
-| 1 | `src/scrapers` + `tests/scrapers` | 17 | 891 | 11 | 25 | 7 | direct (7/10 files) | done PENDING_SHA · net -71 src · CC max 11 → 10 · tests 14 → 52 |
+| 1 | `src/scrapers` + `tests/scrapers` | 17 | 891 | 11 | 25 | 7 | direct (7/10 files) | done 6a52c7a · fix PENDING_FIX · net -71 src · CC max 11 → 10 · tests 14 → 58 |
 | 2 | `src/matching` + `tests/match,normalize` | 6 | 1,355 | 6 | 8 | 0 | direct + strong (56) | pending |
 | 3 | `src/pipeline` + `tests/pipeline,format` | 4 | 624 | 8 | 9 | 0 | direct (13) | pending |
 | 4 | `src/commands` | 7 | 216 | 7 | 12 | 7 | none | pending |
@@ -90,3 +90,26 @@ check, `scheduled` fan-out); it is audited with everything beneath it already cl
   `DEFAULT_TIMEOUT_MS` — three copies of a default.
 - `tests/fixtures/hellojob-az.html` has no duplicate links, so hellojob's parse-level dedupe is
   covered by an inline test rather than the fixture.
+
+### Slice 1 — audit findings
+
+Fixed (behaviour changed, each proven red-first):
+- `busy-az.ts:48`, `glorri-az.ts:76` — a 200 body of well-formed JSON whose listing field is not a
+  list of job objects (`{"vacancies":5}`, `[null]`, `[7]`, numeric `job_title`) threw `TypeError`.
+  For busy.az one such page discarded every other page, because `bodies.flatMap` unwinds. Fixed by
+  `jsonList` in `json.ts` and a type guard in `cleanText`.
+- `hellojob-az.ts:35`, `smartjob-az.ts:46`, `vakansiya-az.ts:33`, `vakansiya-biz.ts:43` — an anchor
+  whose `href` is not a resolvable URL (`//`, `https://[`, a raw space) threw `TypeError: Invalid
+  URL`, losing every other card on the page and, for multi-page boards, every other page. Fixed by
+  `vacancyUrl` in the new `url.ts`.
+
+Reported, not fixed:
+- `glorri-az.ts:50-52` — else arm confirmed unreachable; dead code belongs to /deslop, not a fix.
+- `pages.ts:38-40` — empty `urls` would report a config mistake as a board outage; no caller can
+  produce it (all three pass module-level constants).
+- `busy-az.ts:60` — busy.az is the only parser building its URL by concatenation, so a slug with a
+  raw space or newline survives into the Telegram `<a href>`; needs a live sendMessage to confirm.
+- `src/utils/fetch.ts:24-33` — three retries with no backoff, retrying non-retryable statuses; a
+  steady 403 costs three requests and the 10 s timeout is per attempt. Out of scope (slice 6).
+- `CODING_STANDARDS.md:61-71` — the ratchet and the three detect-object-injection entries are stale;
+  in-slice eslint is now 0, repo-wide 8. Orchestrator closes this at the end of the run.

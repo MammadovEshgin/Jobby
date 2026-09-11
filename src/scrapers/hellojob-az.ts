@@ -4,6 +4,7 @@ import type { RawVacancy, Scraper } from "./types";
 import { dedupeVacanciesByUrl } from "./dedupe";
 import { fetchListingPages, userAgent } from "./pages";
 import { elementText, optionalText } from "./text";
+import { vacancyUrl } from "./url";
 
 const SOURCE = "hellojob.az";
 const BASE_URL = "https://www.hellojob.az";
@@ -31,12 +32,12 @@ export function parseHelloJobAzVacancies(html: string): RawVacancy[] {
   const vacancies: RawVacancy[] = [];
 
   for (const link of parse(html).querySelectorAll("a.vacancies__body")) {
-    const href = link.getAttribute("href");
+    const url = vacancyUrl(link.getAttribute("href"), BASE_URL);
     const title = elementText(link.querySelector(".vacancies__title"));
     const company = elementText(link.querySelector(".vacancies__company"));
     const infoItems = link.querySelectorAll(".vacancies__info__item");
 
-    if (href === undefined || title.length === 0 || company.length === 0) {
+    if (url === undefined || title.length === 0 || company.length === 0) {
       continue;
     }
 
@@ -44,7 +45,7 @@ export function parseHelloJobAzVacancies(html: string): RawVacancy[] {
       title,
       company,
       location: "",
-      url: new URL(href, BASE_URL).toString(),
+      url,
       source: SOURCE,
       postedAt: optionalText(infoItems.at(-1)?.text),
     });

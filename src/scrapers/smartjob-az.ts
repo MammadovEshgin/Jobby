@@ -6,6 +6,7 @@ import { userAgent } from "./pages";
 import { FetchHttpError, fetchText } from "../utils/fetch";
 import { logInfo } from "../utils/log";
 import { elementText, optionalText } from "./text";
+import { vacancyUrl } from "./url";
 
 const SOURCE = "smartjob.az";
 const BASE_URL = "https://smartjob.az";
@@ -42,11 +43,11 @@ export function parseSmartJobAzVacancies(html: string): RawVacancy[] {
 
   for (const card of parse(html).querySelectorAll(".brows-job-list")) {
     const titleLink = card.querySelector(".brows-job-position h3 a");
-    const href = titleLink?.getAttribute("href");
+    const url = vacancyUrl(titleLink?.getAttribute("href"), BASE_URL);
     const title = elementText(titleLink);
     const company = elementText(card.querySelector(".company-title a"));
 
-    if (href === undefined || title.length === 0 || company.length === 0) {
+    if (url === undefined || title.length === 0 || company.length === 0) {
       continue;
     }
 
@@ -54,7 +55,7 @@ export function parseSmartJobAzVacancies(html: string): RawVacancy[] {
       title,
       company,
       location: elementText(card.querySelector(".location-pin")),
-      url: new URL(href, BASE_URL).toString(),
+      url,
       source: SOURCE,
       postedAt: optionalText(card.querySelector(".brows-job-type, .job-post-day")?.text),
     });

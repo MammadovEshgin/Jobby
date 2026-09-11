@@ -1,6 +1,6 @@
 import type { RawVacancy, Scraper } from "./types";
 import { dedupeVacanciesByUrl } from "./dedupe";
-import { parseJsonBody } from "./json";
+import { jsonList, parseJsonBody } from "./json";
 import { userAgent } from "./pages";
 import { fetchText } from "../utils/fetch";
 import { logInfo } from "../utils/log";
@@ -73,7 +73,7 @@ export function parseGlorriAzVacancies(body: string): RawVacancy[] {
   const response = parseJsonBody<{ entities?: GlorriJob[] }>(body);
   const vacancies: RawVacancy[] = [];
 
-  for (const job of response?.entities ?? []) {
+  for (const job of jsonList(response?.entities)) {
     const title = cleanText(job.title);
     const company = cleanText(job.company?.name);
     const companySlug = job.company?.slug;

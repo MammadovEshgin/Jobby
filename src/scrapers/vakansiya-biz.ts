@@ -4,6 +4,7 @@ import type { RawVacancy, Scraper } from "./types";
 import { dedupeVacanciesByUrl } from "./dedupe";
 import { fetchListingPages, userAgent } from "./pages";
 import { elementText, optionalText } from "./text";
+import { vacancyUrl } from "./url";
 
 const SOURCE = "vakansiya.biz";
 const BASE_URL = "https://vakansiya.biz";
@@ -39,11 +40,12 @@ export function parseVakansiyaBizVacancies(html: string): RawVacancy[] {
       continue;
     }
 
+    const url = vacancyUrl(href, BASE_URL);
     const title = elementText(link.querySelector("h2"));
     // The subtitle holds "Company · Location" for every card on the board.
     const [company, location] = splitSubtitle(elementText(link.querySelector("p")));
 
-    if (title.length === 0 || company.length === 0) {
+    if (url === undefined || title.length === 0 || company.length === 0) {
       continue;
     }
 
@@ -51,7 +53,7 @@ export function parseVakansiyaBizVacancies(html: string): RawVacancy[] {
       title,
       company,
       location,
-      url: new URL(href, BASE_URL).toString(),
+      url,
       source: SOURCE,
       postedAt: optionalText(link.querySelector("span")?.text),
     });
