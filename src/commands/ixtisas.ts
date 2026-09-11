@@ -1,6 +1,7 @@
 import type { BotContext, VakansiyaBot } from "../bot";
 import { addField, upsertUser } from "../db/users";
 import { normalize } from "../matching/normalize";
+import { commandArgument } from "./argument";
 
 export function registerIxtisasCommand(bot: VakansiyaBot): void {
   bot.command("ixtisas", async (ctx: BotContext) => {
@@ -35,8 +36,4 @@ export function registerIxtisasCommand(bot: VakansiyaBot): void {
 
     await ctx.reply(`İxtisas əlavə edildi: ${rawField}\nSiyahını görmək üçün /ixtisaslar yazın.`);
   });
-}
-
-function commandArgument(text: string, command: string): string {
-  return text.replace(new RegExp(`^/${command}(?:@\\w+)?\\s*`, "i"), "").trim();
 }

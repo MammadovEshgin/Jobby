@@ -1,6 +1,7 @@
 import type { BotContext, VakansiyaBot } from "../bot";
 import { removeField } from "../db/users";
 import { normalize } from "../matching/normalize";
+import { commandArgument } from "./argument";
 
 export function registerSilCommand(bot: VakansiyaBot): void {
   bot.command("sil", async (ctx: BotContext) => {
@@ -19,8 +20,4 @@ export function registerSilCommand(bot: VakansiyaBot): void {
     const removed = await removeField(ctx.env.DB, ctx.from.id, normalize(rawField));
     await ctx.reply(removed ? "İxtisas silindi." : "Bu ixtisas siyahınızda tapılmadı.");
   });
-}
-
-function commandArgument(text: string, command: string): string {
-  return text.replace(new RegExp(`^/${command}(?:@\\w+)?\\s*`, "i"), "").trim();
 }

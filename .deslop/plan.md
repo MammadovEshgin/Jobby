@@ -14,8 +14,8 @@ from `master`. Baseline re-measured on the branch: check **pass** · 86/86 tests
 |---|---|---|---|---|---|---|---|---|
 | 1 | `src/scrapers` + `tests/scrapers` | 17 | 891 | 11 | 25 | 7 | direct (7/10 files) | done 6a52c7a · fix 6ad840e · net -71 src · CC max 11 → 10 · tests 14 → 58 |
 | 2 | `src/matching` + `tests/match,normalize` | 6 | 1,355 | 6 | 8 | 0 | direct + strong (56) | done dc4c529 · fix 5f5b30a · net +2 prod · CC 6 → 6 · tests 56 → 71 |
-| 3 | `src/pipeline` + `tests/pipeline,format` | 4 | 624 | 8 | 9 | 0 | direct (13) | done b02d51e · fix PENDING4 · net +5 prod · CC 8 → 7 · tests 13 → 28 |
-| 4 | `src/commands` | 7 | 216 | 7 | 12 | 7 | none | pending |
+| 3 | `src/pipeline` + `tests/pipeline,format` | 4 | 624 | 8 | 9 | 0 | direct (13) | done b02d51e · fix ac2dffa · net +5 prod · CC 8 → 7 · tests 13 → 28 |
+| 4 | `src/commands` | 7 | 216 | 7 | 12 | 7 | none | done PENDING5 · net -2 prod · tests 0 → 33 |
 | 5 | `src/db` | 4 | 411 | 5 | 8 | 1 | none | pending |
 | 6 | `src/utils` + `scripts` + `tests/fingerprint` | 5 | 211 | 7 | 6 | 0 | partial (1/3) | pending |
 | 7 | `src/bot.ts` + `src/index.ts` | 2 | 149 | 4 | 6 | 2 | none | pending |
@@ -221,3 +221,18 @@ Reported, not fixed:
 Trade-off accepted: under a persistent D1 write outage the run now repeats a user's batch hourly
 instead of stopping at the first user. That user was already going to see the duplicate, and
 everyone behind them now gets delivered.
+
+### Slice 4 — found, not changed (from the worker)
+
+- The `ctx.from === undefined` guard and its reply string are copy-pasted in six command files. The
+  real fix is one grammY middleware in `src/bot.ts`, outside this slice — proposal for slice 7.
+  A shared constant alone would dedupe the string but leave six identical branches, so the
+  half-measure was declined.
+- `sil.ts:19` vs `ixtisas.ts:21` — `/ixtisas ***` is rejected with a message, but `/sil ***` queries
+  D1 with an empty field. Characterized as-is; harmless today, but an asymmetry the audit should
+  rule on since fixing it changes behaviour.
+- `argument.ts:3` — the `detect-non-literal-regexp` warning moved here and is now one instead of
+  two. Not suppressed.
+- `axtar.ts:40` — `search()` takes the whole `BotContext` but needs only `ctx.env` and `ctx.api`.
+- `README.md:54-59` — the command table omits `/komek`, which the bot's own help text advertises.
+- Untestable: none. All seven command files reached the seam.
