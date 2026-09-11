@@ -20,8 +20,7 @@ export function registerAxtarCommand(bot: VakansiyaBot): void {
     const limit = await checkManualSearchLimit(ctx.env.DB, ctx.from.id);
 
     if (!limit.allowed) {
-      const minutes = Math.ceil(limit.retryAfterSeconds / 60);
-      await ctx.reply(`Manual axtarışı ${minutes} dəqiqədən sonra yenidən işə sala bilərsiniz.`);
+      await ctx.reply(`Manual axtarışı ${limit.retryAfterSeconds} saniyədən sonra yenidən işə sala bilərsiniz.`);
       return;
     }
 

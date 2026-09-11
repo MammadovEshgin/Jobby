@@ -3,7 +3,7 @@ export interface ManualSearchLimit {
   retryAfterSeconds: number;
 }
 
-const DEFAULT_COOLDOWN_SECONDS = 10 * 60;
+const DEFAULT_COOLDOWN_SECONDS = 10;
 
 export async function checkManualSearchLimit(
   db: D1Database,
