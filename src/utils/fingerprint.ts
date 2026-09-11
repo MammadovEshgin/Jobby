@@ -8,7 +8,9 @@ export async function fingerprint(title: string, company: string): Promise<strin
   return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
-export async function dedupeVacanciesByFingerprint(vacancies: readonly RawVacancy[]): Promise<RawVacancy[]> {
+export async function dedupeVacanciesByFingerprint(
+  vacancies: readonly RawVacancy[],
+): Promise<RawVacancy[]> {
   const seen = new Set<string>();
   const deduped: RawVacancy[] = [];
 

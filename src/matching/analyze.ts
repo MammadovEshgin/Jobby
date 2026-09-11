@@ -1,4 +1,4 @@
-import { CONCEPTS, SOFT_TERMS, type ConceptDefinition, type ConceptKind } from "./lexicon";
+import { CONCEPTS, SOFT_TERMS, type ConceptDefinition } from "./lexicon";
 import { normalize, tokenize } from "./normalize";
 
 /** Shortest lexicon entry that may stand in for a longer, suffixed word. */
@@ -28,7 +28,9 @@ interface Phrase {
   entry: IndexEntry;
 }
 
-const conceptsById = new Map<string, ConceptDefinition>(CONCEPTS.map((concept) => [concept.id, concept]));
+const conceptsById = new Map<string, ConceptDefinition>(
+  CONCEPTS.map((concept) => [concept.id, concept]),
+);
 const { wordIndex, phraseIndex } = buildIndexes();
 
 export function analyze(text: string): Analysis {
@@ -64,10 +66,6 @@ export function analyze(text: string): Analysis {
   };
 }
 
-export function conceptKind(id: string): ConceptKind | undefined {
-  return conceptsById.get(id)?.kind;
-}
-
 /**
  * True when two words are the same word ignoring Azerbaijani suffixes:
  * "müəllim" / "müəllimi" / "müəllimlərə" all collapse onto each other.
@@ -84,7 +82,9 @@ export function tokensEquivalent(token: string, other: string): boolean {
 
 function covers(root: string, word: string): boolean {
   return (
-    root.length >= MIN_ROOT_LENGTH && word.length - root.length <= MAX_SUFFIX_LENGTH && word.startsWith(root)
+    root.length >= MIN_ROOT_LENGTH &&
+    word.length - root.length <= MAX_SUFFIX_LENGTH &&
+    word.startsWith(root)
   );
 }
 
@@ -113,7 +113,10 @@ function addConceptWithImplications(concepts: Set<string>, id: string): void {
   }
 }
 
-function matchPhrase(tokens: readonly string[], index: number): { entry: IndexEntry; length: number } | undefined {
+function matchPhrase(
+  tokens: readonly string[],
+  index: number,
+): { entry: IndexEntry; length: number } | undefined {
   let best: { entry: IndexEntry; length: number } | undefined;
 
   for (const phrase of phraseCandidates(tokens[index])) {
@@ -125,7 +128,9 @@ function matchPhrase(tokens: readonly string[], index: number): { entry: IndexEn
       continue;
     }
 
-    const fits = phrase.tokens.every((root, offset) => covers(root, tokens[index + offset]) || root === tokens[index + offset]);
+    const fits = phrase.tokens.every(
+      (root, offset) => covers(root, tokens[index + offset]) || root === tokens[index + offset],
+    );
 
     if (fits) {
       best = { entry: phrase.entry, length: phrase.tokens.length };
@@ -176,7 +181,10 @@ function isMeaningfulUnknown(token: string): boolean {
   return token.length >= 2 && !/^\d+$/.test(token);
 }
 
-function buildIndexes(): { wordIndex: Map<string, IndexEntry>; phraseIndex: Map<string, Phrase[]> } {
+function buildIndexes(): {
+  wordIndex: Map<string, IndexEntry>;
+  phraseIndex: Map<string, Phrase[]>;
+} {
   const wordIndex = new Map<string, IndexEntry>();
   const phraseIndex = new Map<string, Phrase[]>();
 
@@ -212,7 +220,10 @@ function addWord(index: Map<string, IndexEntry>, key: string, conceptId: string 
   const existing = index.get(key);
 
   if (existing === undefined) {
-    index.set(key, { conceptIds: conceptId === undefined ? [] : [conceptId], soft: conceptId === undefined });
+    index.set(key, {
+      conceptIds: conceptId === undefined ? [] : [conceptId],
+      soft: conceptId === undefined,
+    });
     return;
   }
 
@@ -222,14 +233,21 @@ function addWord(index: Map<string, IndexEntry>, key: string, conceptId: string 
   }
 }
 
-function addPhrase(index: Map<string, Phrase[]>, tokens: string[], conceptId: string | undefined): void {
+function addPhrase(
+  index: Map<string, Phrase[]>,
+  tokens: string[],
+  conceptId: string | undefined,
+): void {
   const bucket = index.get(tokens[0]) ?? [];
   const existing = bucket.find((phrase) => phrase.tokens.join(" ") === tokens.join(" "));
 
   if (existing === undefined) {
     bucket.push({
       tokens,
-      entry: { conceptIds: conceptId === undefined ? [] : [conceptId], soft: conceptId === undefined },
+      entry: {
+        conceptIds: conceptId === undefined ? [] : [conceptId],
+        soft: conceptId === undefined,
+      },
     });
   } else if (conceptId !== undefined && !existing.entry.conceptIds.includes(conceptId)) {
     existing.entry.conceptIds.push(conceptId);

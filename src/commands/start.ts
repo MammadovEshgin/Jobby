@@ -21,7 +21,7 @@ export function registerStartCommand(bot: VakansiyaBot): void {
         "/ixtisas backend developer",
         "",
         "İxtisası nə qədər dəqiq yazsanız, nəticələr bir o qədər dəqiq olur:",
-        "\"musiqi müəllimi\" yazsanız, fizika müəllimi vakansiyaları göndərilməyəcək.",
+        '"musiqi müəllimi" yazsanız, fizika müəllimi vakansiyaları göndərilməyəcək.',
         "",
         "Komandalar üçün /komek yazın.",
       ].join("\n"),

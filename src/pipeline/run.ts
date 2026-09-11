@@ -1,5 +1,10 @@
 import { listActiveUsersWithFields, type ActiveUserWithFields } from "../db/users";
-import { listSnapshot, pruneSnapshotOlderThan, saveSnapshot, type SnapshotVacancy } from "../db/snapshot";
+import {
+  listSnapshot,
+  pruneSnapshotOlderThan,
+  saveSnapshot,
+  type SnapshotVacancy,
+} from "../db/snapshot";
 import { listSentFingerprints, markManySent, pruneOlderThan } from "../db/vacancies";
 import { compile, compileAll, matchCompiled, type CompiledText } from "../matching/match";
 import { fetchAllVacancies } from "../scrapers";
@@ -12,7 +17,7 @@ import { formatVacancyMessages } from "./format";
 export const MANUAL_SEARCH_LIMIT = 60;
 
 /** How long a vacancy counts as open after the last time a source listed it. */
-export const SNAPSHOT_MAX_AGE_SECONDS = 7 * 24 * 60 * 60;
+const SNAPSHOT_MAX_AGE_SECONDS = 7 * 24 * 60 * 60;
 
 export interface PipelineEnv {
   DB: D1Database;
@@ -41,7 +46,10 @@ interface MatchedVacancy extends SnapshotVacancy {
  * Hourly run: scrape every source, remember what is open, and send each user
  * the matches they have not received yet.
  */
-export async function runPipeline(env: PipelineEnv, options: { pruneOld?: boolean } = {}): Promise<PipelineResult> {
+export async function runPipeline(
+  env: PipelineEnv,
+  options: { pruneOld?: boolean } = {},
+): Promise<PipelineResult> {
   if (options.pruneOld === true) {
     await pruneOlderThan(env.DB, 60);
     await pruneSnapshotOlderThan(env.DB, 14);
@@ -58,14 +66,22 @@ export async function runPipeline(env: PipelineEnv, options: { pruneOld?: boolea
   const users = await listActiveUsersWithFields(env.DB);
   const delivered = await deliver(env, candidates, users, { includeAlreadySent: false });
 
-  return { scraped: scraped.length, deduped: candidates.length, usersChecked: users.length, ...delivered };
+  return {
+    scraped: scraped.length,
+    deduped: candidates.length,
+    usersChecked: users.length,
+    ...delivered,
+  };
 }
 
 /**
  * `/axtar`: answer from the last scrape so the search finishes in a second or
  * two, and return every open match — including ones already delivered.
  */
-export async function runManualSearch(env: PipelineEnv, telegramId: number): Promise<PipelineResult> {
+export async function runManualSearch(
+  env: PipelineEnv,
+  telegramId: number,
+): Promise<PipelineResult> {
   const users = await listActiveUsersWithFields(env.DB, telegramId);
   const stored = await listSnapshot(env.DB, SNAPSHOT_MAX_AGE_SECONDS);
   let candidates: Candidate[];
@@ -121,7 +137,9 @@ async function deliver(
   for (const user of users) {
     const sent = await listSentFingerprints(env.DB, user.telegramId);
     const matched = matchForUser(candidates, user, sent);
-    const selected = options.includeAlreadySent ? matched : matched.filter((item) => !item.alreadySent);
+    const selected = options.includeAlreadySent
+      ? matched
+      : matched.filter((item) => !item.alreadySent);
 
     if (selected.length === 0) {
       continue;
@@ -186,7 +204,10 @@ function matchForUser(
   }
 
   // Tightest match first, so the most relevant vacancy heads the message.
-  return matched.sort((left, right) => right.score - left.score || left.vacancy.title.localeCompare(right.vacancy.title));
+  return matched.sort(
+    (left, right) =>
+      right.score - left.score || left.vacancy.title.localeCompare(right.vacancy.title),
+  );
 }
 
 async function sendTelegramMessage(token: string, chatId: number, text: string): Promise<void> {
@@ -220,7 +241,7 @@ async function sendTelegramMessage(token: string, chatId: number, text: string):
 
 async function retryAfterSeconds(response: Response): Promise<number> {
   try {
-    const body = (await response.json()) as { parameters?: { retry_after?: number } };
+    const body = await response.json<{ parameters?: { retry_after?: number } }>();
     return body.parameters?.retry_after ?? 1;
   } catch {
     return 1;

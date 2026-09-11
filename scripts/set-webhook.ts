@@ -48,7 +48,10 @@ function loadDevVars(): Record<string, string> {
         .map((line) => {
           const index = line.indexOf("=");
           const key = line.slice(0, index).trim();
-          const value = line.slice(index + 1).trim().replace(/^"(.*)"$/, "$1");
+          const value = line
+            .slice(index + 1)
+            .trim()
+            .replace(/^"(.*)"$/, "$1");
           return [key, value];
         }),
     );

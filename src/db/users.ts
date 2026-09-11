@@ -72,7 +72,11 @@ export async function addField(db: D1Database, input: AddFieldInput): Promise<vo
     .run();
 }
 
-export async function removeField(db: D1Database, telegramId: number, field: string): Promise<boolean> {
+export async function removeField(
+  db: D1Database,
+  telegramId: number,
+  field: string,
+): Promise<boolean> {
   const result = await db
     .prepare(
       `
@@ -102,7 +106,11 @@ export async function listFields(db: D1Database, telegramId: number): Promise<Us
   return result.results.map(mapUserFieldRow);
 }
 
-export async function setActive(db: D1Database, telegramId: number, isActive: boolean): Promise<void> {
+export async function setActive(
+  db: D1Database,
+  telegramId: number,
+  isActive: boolean,
+): Promise<void> {
   await db
     .prepare(
       `
@@ -135,13 +143,11 @@ export async function listActiveUsersWithFields(
   const users = new Map<number, ActiveUserWithFields>();
 
   for (const row of result.results) {
-    const existing =
-      users.get(row.telegram_id) ??
-      {
-        telegramId: row.telegram_id,
-        username: row.username,
-        fields: [],
-      };
+    const existing = users.get(row.telegram_id) ?? {
+      telegramId: row.telegram_id,
+      username: row.username,
+      fields: [],
+    };
 
     existing.fields.push(mapUserFieldRow(row));
     users.set(row.telegram_id, existing);

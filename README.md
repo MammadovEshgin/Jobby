@@ -26,7 +26,7 @@
 
 ## Highlights
 
-- **Matching that discriminates** — a vacancy is sent only when its title carries *every* idea the followed position carries. `music teacher` finds `Musiqi müəllimi` and `Piano müəllimi`, never `Fizika müəllimi`, even though both are teachers. See [Matching Engine](#matching-engine).
+- **Matching that discriminates** — a vacancy is sent only when its title carries _every_ idea the followed position carries. `music teacher` finds `Musiqi müəllimi` and `Piano müəllimi`, never `Fizika müəllimi`, even though both are teachers. See [Matching Engine](#matching-engine).
 - **Bilingual by construction** — each concept lists its Azerbaijani, English and Russian spellings, so one saved position matches postings in any of the three. Azerbaijani suffixes are stripped (`müəllimlərinə` → `müəllim`) and multi-word terms (`ingilis dili`, `call center`) read as single ideas.
 - **Seven sources, ~900 listings per run** — HTML boards and private JSON APIs, deduplicated by `sha256(title | company)`. A board that blocks or breaks is logged and skipped; the run continues on the rest.
 - **Never the same vacancy twice** — every delivery is fingerprinted per user, so the hourly run only ever sends what is new.
@@ -36,27 +36,27 @@
 
 ## Tech Stack
 
-| Layer | Choice |
-|---|---|
-| Runtime | Cloudflare Workers |
-| Language | TypeScript 5 (strict) |
+| Layer         | Choice                                           |
+| ------------- | ------------------------------------------------ |
+| Runtime       | Cloudflare Workers                               |
+| Language      | TypeScript 5 (strict)                            |
 | Bot framework | [grammY](https://grammy.dev) 1.30 (`grammy/web`) |
-| Storage | Cloudflare D1 (SQLite) |
-| Scheduling | Cron Triggers (`7 * * * *`) |
-| Scraping | `node-html-parser` + public JSON APIs |
-| Tests | Vitest (fixture-based, no live network) |
-| Tooling | Wrangler, tsx |
+| Storage       | Cloudflare D1 (SQLite)                           |
+| Scheduling    | Cron Triggers (`7 * * * *`)                      |
+| Scraping      | `node-html-parser` + public JSON APIs            |
+| Tests         | Vitest (fixture-based, no live network)          |
+| Tooling       | Wrangler, tsx                                    |
 
 ## Bot Commands
 
-| Command | What it does |
-|---|---|
-| `/start` | Registers the user and turns notifications on |
-| `/ixtisas <text>` | Follows a position — `/ixtisas musiqi müəllimi` |
-| `/ixtisaslar` | Lists followed positions, with inline delete buttons |
-| `/sil <text>` | Stops following a position |
-| `/axtar` | Searches now and returns every open match (up to 60, tightest first) |
-| `/stop` | Turns notifications off |
+| Command           | What it does                                                         |
+| ----------------- | -------------------------------------------------------------------- |
+| `/start`          | Registers the user and turns notifications on                        |
+| `/ixtisas <text>` | Follows a position — `/ixtisas musiqi müəllimi`                      |
+| `/ixtisaslar`     | Lists followed positions, with inline delete buttons                 |
+| `/sil <text>`     | Stops following a position                                           |
+| `/axtar`          | Searches now and returns every open match (up to 60, tightest first) |
+| `/stop`           | Turns notifications off                                              |
 
 The hourly run sends only vacancies a user has not received before. `/axtar` ignores that history and returns everything currently open.
 
@@ -84,15 +84,15 @@ npm run dev
 
 ## Available Scripts
 
-| Command | What it does |
-|---|---|
-| `npm run dev` | Run the Worker locally with `wrangler dev --local` |
-| `npm test` | Vitest suite — 86 tests across 12 files |
-| `npm run typecheck` | `tsc --noEmit` — strict TypeScript pass |
-| `npm run deploy` | Publish the Worker to Cloudflare |
-| `npm run set-webhook -- <url>` | Point Telegram at the deployed Worker |
-| `npm run db:apply:local` / `:remote` | Apply `schema.sql` to the local or production D1 |
-| `npm run tail` | Stream structured production logs |
+| Command                              | What it does                                       |
+| ------------------------------------ | -------------------------------------------------- |
+| `npm run dev`                        | Run the Worker locally with `wrangler dev --local` |
+| `npm test`                           | Vitest suite — 86 tests across 12 files            |
+| `npm run typecheck`                  | `tsc --noEmit` — strict TypeScript pass            |
+| `npm run deploy`                     | Publish the Worker to Cloudflare                   |
+| `npm run set-webhook -- <url>`       | Point Telegram at the deployed Worker              |
+| `npm run db:apply:local` / `:remote` | Apply `schema.sql` to the local or production D1   |
+| `npm run tail`                       | Stream structured production logs                  |
 
 ## Project Structure
 
@@ -116,7 +116,7 @@ assets/               Mascot artwork
 
 ## Matching Engine
 
-The matcher lives in `src/matching` and answers one question: does this title carry every idea the user asked for? The rule is deliberately one-directional — a title may *add* ideas (seniority, a branch, a second subject), but it may never *drop* one.
+The matcher lives in `src/matching` and answers one question: does this title carry every idea the user asked for? The rule is deliberately one-directional — a title may _add_ ideas (seniority, a branch, a second subject), but it may never _drop_ one.
 
 ```
 music teacher      →  Musiqi müəllimi · Music Teacher · Piano müəllimi
@@ -134,15 +134,15 @@ Three stages:
 
 ## Sources
 
-| Source | Method | Per run |
-|---|---|---|
-| hellojob.az | HTML, 4 listing pages | ~320 |
-| busy.az | JSON API, 2 × 100 | ~200 |
-| jobs.glorri.az | JSON API, 6 pages | ~105 |
-| smartjob.az | HTML, `/vacancies` | ~100 |
-| vakansiya.biz | HTML, 5 listing pages | ~100 |
-| vakansiya.az | HTML, latest listings | ~60 |
-| jobsearch.az | HTML, first page | ~30 |
+| Source         | Method                | Per run |
+| -------------- | --------------------- | ------- |
+| hellojob.az    | HTML, 4 listing pages | ~320    |
+| busy.az        | JSON API, 2 × 100     | ~200    |
+| jobs.glorri.az | JSON API, 6 pages     | ~105    |
+| smartjob.az    | HTML, `/vacancies`    | ~100    |
+| vakansiya.biz  | HTML, 5 listing pages | ~100    |
+| vakansiya.az   | HTML, latest listings | ~60     |
+| jobsearch.az   | HTML, first page      | ~30     |
 
 Adding a board means implementing the `Scraper` interface in `src/scrapers` and registering it in [`src/scrapers/index.ts`](src/scrapers/index.ts). Every scraper exports a pure `parse…(html)` function so it can be tested against a saved fixture.
 
@@ -184,14 +184,14 @@ npm run set-webhook -- https://<worker>.workers.dev
 - **Retention:** sent-vacancy ids 60 days, snapshot rows 14 days, pruned in the 03:xx Baku run.
 - **Logs** are single-line JSON — `npm run tail`:
 
-| Event | Meaning |
-|---|---|
-| `scraper_complete` / `scraper_failed` | Per-board result, count and duration |
-| `scraper_page_skipped` | One listing page failed; the board still returned |
-| `pipeline_complete` / `pipeline_failed` | Hourly run summary |
-| `manual_search_complete` / `manual_search_failed` | `/axtar` outcome per user |
-| `delivery_failed` | A chat rejected the message (blocked bot, rate limit) |
-| `bot_error` | Unhandled error inside a command handler |
+| Event                                             | Meaning                                               |
+| ------------------------------------------------- | ----------------------------------------------------- |
+| `scraper_complete` / `scraper_failed`             | Per-board result, count and duration                  |
+| `scraper_page_skipped`                            | One listing page failed; the board still returned     |
+| `pipeline_complete` / `pipeline_failed`           | Hourly run summary                                    |
+| `manual_search_complete` / `manual_search_failed` | `/axtar` outcome per user                             |
+| `delivery_failed`                                 | A chat rejected the message (blocked bot, rate limit) |
+| `bot_error`                                       | Unhandled error inside a command handler              |
 
 ## License
 

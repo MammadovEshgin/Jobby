@@ -45,12 +45,16 @@ export function formatVacancyMessages(batch: VacancyBatch): string[] {
 function formatVacancy(vacancy: RawVacancy): string {
   const title = escapeHtml(truncate(vacancy.title, 120));
   const company = escapeHtml(truncate(vacancy.company, 90));
-  const location = vacancy.location.length > 0 ? ` · 📍 ${escapeHtml(truncate(vacancy.location, 90))}` : "";
+  const location =
+    vacancy.location.length > 0 ? ` · 📍 ${escapeHtml(truncate(vacancy.location, 90))}` : "";
   const url = escapeHtml(vacancy.url);
 
-  return [`💼 <b>${title}</b>`, `🏢 ${company}${location}`, `🔗 <a href="${url}">Elana bax</a>`, "────────────"].join(
-    "\n",
-  );
+  return [
+    `💼 <b>${title}</b>`,
+    `🏢 ${company}${location}`,
+    `🔗 <a href="${url}">Elana bax</a>`,
+    "────────────",
+  ].join("\n");
 }
 
 function formatDate(date: Date): string {

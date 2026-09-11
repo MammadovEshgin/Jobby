@@ -44,6 +44,9 @@ describe("dedupeVacanciesByFingerprint", () => {
       },
     ]);
 
-    expect(vacancies.map((vacancy) => vacancy.url)).toEqual(["https://example.com/1", "https://example.com/3"]);
+    expect(vacancies.map((vacancy) => vacancy.url)).toEqual([
+      "https://example.com/1",
+      "https://example.com/3",
+    ]);
   });
 });

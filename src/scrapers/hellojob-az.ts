@@ -44,7 +44,10 @@ export const helloJobAzScraper: Scraper = {
     }
 
     if (pages.length === 0) {
-      throw results.find((result) => result.status === "rejected")?.reason ?? new Error("No hellojob.az pages fetched.");
+      throw (
+        results.find((result) => result.status === "rejected")?.reason ??
+        new Error("No hellojob.az pages fetched.")
+      );
     }
 
     return dedupeVacanciesByUrl(pages.flatMap((html) => parseHelloJobAzVacancies(html)));
@@ -60,7 +63,9 @@ export function parseHelloJobAzVacancies(html: string): RawVacancy[] {
     const href = link.getAttribute("href");
     const title = cleanText(link.querySelector(".vacancies__title")?.text);
     const company = cleanText(link.querySelector(".vacancies__company")?.text);
-    const infoItems = link.querySelectorAll(".vacancies__info__item").map((item) => cleanText(item.text));
+    const infoItems = link
+      .querySelectorAll(".vacancies__info__item")
+      .map((item) => cleanText(item.text));
     const postedAt = infoItems.at(-1);
 
     if (href === undefined || title.length === 0 || company.length === 0) {

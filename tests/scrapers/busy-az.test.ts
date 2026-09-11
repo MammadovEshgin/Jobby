@@ -29,7 +29,9 @@ describe("parseBusyAzVacancies", () => {
   it("skips entries without a usable title or company", async () => {
     const vacancies = parseBusyAzVacancies(await fixture());
 
-    expect(vacancies.every((vacancy) => vacancy.title.length > 0 && vacancy.company.length > 0)).toBe(true);
+    expect(
+      vacancies.every((vacancy) => vacancy.title.length > 0 && vacancy.company.length > 0),
+    ).toBe(true);
   });
 
   it("returns nothing when the response is not JSON", () => {

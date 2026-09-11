@@ -22,7 +22,9 @@ export function registerAxtarCommand(bot: VakansiyaBot): void {
     const limit = await checkManualSearchLimit(ctx.env.DB, telegramId);
 
     if (!limit.allowed) {
-      await ctx.reply(`Manual axtarışı ${limit.retryAfterSeconds} saniyədən sonra yenidən işə sala bilərsiniz.`);
+      await ctx.reply(
+        `Manual axtarışı ${limit.retryAfterSeconds} saniyədən sonra yenidən işə sala bilərsiniz.`,
+      );
       return;
     }
 

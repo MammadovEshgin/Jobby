@@ -31,7 +31,7 @@ export default {
     return await handleUpdate(request);
   },
 
-  async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {
+  scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext): void {
     ctx.waitUntil(
       runPipeline(env, { pruneOld: shouldPruneOldFingerprints(event.scheduledTime) })
         .then((result) => {

@@ -44,7 +44,9 @@ export const glorriAzScraper: Scraper = {
     }
 
     if (failures === pages.length) {
-      throw pages[0].status === "rejected" ? pages[0].reason : new Error("No jobs.glorri.az pages fetched.");
+      throw pages[0].status === "rejected"
+        ? pages[0].reason
+        : new Error("No jobs.glorri.az pages fetched.");
     }
 
     if (failures > 0) {
@@ -84,7 +86,12 @@ export function parseGlorriAzVacancies(body: string): RawVacancy[] {
     const company = cleanText(job.company?.name);
     const companySlug = job.company?.slug;
 
-    if (title.length === 0 || company.length === 0 || companySlug === undefined || job.slug === undefined) {
+    if (
+      title.length === 0 ||
+      company.length === 0 ||
+      companySlug === undefined ||
+      job.slug === undefined
+    ) {
       continue;
     }
 

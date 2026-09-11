@@ -49,7 +49,9 @@ export function createBot(env: BotEnv): VakansiyaBot {
 
     const removed = await removeField(ctx.env.DB, telegramId, field);
     await ctx.answerCallbackQuery({ text: removed ? "İxtisas silindi." : "İxtisas tapılmadı." });
-    await ctx.editMessageText(removed ? "İxtisas silindi. Yenilənmiş siyahı üçün /ixtisaslar yazın." : "İxtisas tapılmadı.");
+    await ctx.editMessageText(
+      removed ? "İxtisas silindi. Yenilənmiş siyahı üçün /ixtisaslar yazın." : "İxtisas tapılmadı.",
+    );
   });
 
   bot.on("message", async (ctx) => {
@@ -69,7 +71,9 @@ export function createBot(env: BotEnv): VakansiyaBot {
   return bot;
 }
 
-export function fieldListKeyboard(fields: readonly { field: string; rawField: string }[]): InlineKeyboard | undefined {
+export function fieldListKeyboard(
+  fields: readonly { field: string; rawField: string }[],
+): InlineKeyboard | undefined {
   const keyboard = new InlineKeyboard();
   let added = false;
 

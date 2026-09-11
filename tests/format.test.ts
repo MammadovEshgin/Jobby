@@ -18,7 +18,10 @@ describe("formatVacancyMessages", () => {
 
   it("formats matched vacancies as Telegram HTML", () => {
     const [message] = formatVacancyMessages({
-      vacancies: [vacancy, { ...vacancy, title: "Java Developer", url: "https://example.com/vacancy/2" }],
+      vacancies: [
+        vacancy,
+        { ...vacancy, title: "Java Developer", url: "https://example.com/vacancy/2" },
+      ],
       date: new Date("2026-05-19T10:00:00Z"),
     });
 

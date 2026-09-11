@@ -46,7 +46,8 @@ export const vakansiyaBizScraper: Scraper = {
 
     if (pages.length === 0) {
       throw (
-        results.find((result) => result.status === "rejected")?.reason ?? new Error("No vakansiya.biz pages fetched.")
+        results.find((result) => result.status === "rejected")?.reason ??
+        new Error("No vakansiya.biz pages fetched.")
       );
     }
 

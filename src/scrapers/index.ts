@@ -8,7 +8,7 @@ import { vakansiyaBizScraper } from "./vakansiya-biz";
 import type { RawVacancy, Scraper } from "./types";
 import { logError, logInfo } from "../utils/log";
 
-export const scrapers: Scraper[] = [
+const scrapers: Scraper[] = [
   helloJobAzScraper,
   jobSearchAzScraper,
   busyAzScraper,

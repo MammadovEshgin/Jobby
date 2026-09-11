@@ -98,7 +98,9 @@ function fakeDb(fields: string[]): D1Database {
     prepare: (sql: string) => statement(sql),
     async batch(statements: D1PreparedStatement[]) {
       return await Promise.all(
-        statements.map(async (item) => await (item as unknown as { run: () => Promise<unknown> }).run()),
+        statements.map(
+          async (item) => await (item as unknown as { run: () => Promise<unknown> }).run(),
+        ),
       );
     },
   } as unknown as D1Database;
@@ -201,7 +203,10 @@ describe("runManualSearch", () => {
   it("scrapes once when no snapshot exists yet", async () => {
     vacancies.current = [vacancy("Musiqi müəllimi")];
 
-    const manual = await runManualSearch({ DB: fakeDb(["musiqi muellimi"]), BOT_TOKEN: "token" }, 1);
+    const manual = await runManualSearch(
+      { DB: fakeDb(["musiqi muellimi"]), BOT_TOKEN: "token" },
+      1,
+    );
 
     expect(scrapeCalls.count).toBe(1);
     expect(manual.vacanciesSent).toBe(1);
@@ -223,7 +228,10 @@ describe("runManualSearch", () => {
       vacancy(`Musiqi müəllimi ${index}`, `Company ${index}`),
     );
 
-    const manual = await runManualSearch({ DB: fakeDb(["musiqi muellimi"]), BOT_TOKEN: "token" }, 1);
+    const manual = await runManualSearch(
+      { DB: fakeDb(["musiqi muellimi"]), BOT_TOKEN: "token" },
+      1,
+    );
 
     expect(manual.vacanciesSent).toBe(MANUAL_SEARCH_LIMIT);
     expect(manual.truncated).toBe(true);

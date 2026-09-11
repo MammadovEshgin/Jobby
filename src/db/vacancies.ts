@@ -5,7 +5,10 @@ export interface MarkSentInput {
 }
 
 /** Every fingerprint already delivered to this user, as one round trip. */
-export async function listSentFingerprints(db: D1Database, telegramId: number): Promise<Set<string>> {
+export async function listSentFingerprints(
+  db: D1Database,
+  telegramId: number,
+): Promise<Set<string>> {
   const result = await db
     .prepare(
       `
@@ -21,7 +24,10 @@ export async function listSentFingerprints(db: D1Database, telegramId: number): 
 }
 
 /** Records a whole batch in one D1 round trip instead of one per vacancy. */
-export async function markManySent(db: D1Database, inputs: readonly MarkSentInput[]): Promise<void> {
+export async function markManySent(
+  db: D1Database,
+  inputs: readonly MarkSentInput[],
+): Promise<void> {
   if (inputs.length === 0) {
     return;
   }
@@ -35,7 +41,9 @@ export async function markManySent(db: D1Database, inputs: readonly MarkSentInpu
     `,
   );
 
-  await db.batch(inputs.map((input) => statement.bind(input.fingerprint, input.telegramId, now, input.source)));
+  await db.batch(
+    inputs.map((input) => statement.bind(input.fingerprint, input.telegramId, now, input.source)),
+  );
 }
 
 export async function pruneOlderThan(db: D1Database, days: number): Promise<number> {

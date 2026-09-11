@@ -26,7 +26,10 @@ interface BusyVacancy {
 export const busyAzScraper: Scraper = {
   name: "busy.az",
   async fetch(): Promise<RawVacancy[]> {
-    const urls = Array.from({ length: PAGES }, (_, index) => `${API_URL}?page=${index + 1}&per_page=${PAGE_SIZE}`);
+    const urls = Array.from(
+      { length: PAGES },
+      (_, index) => `${API_URL}?page=${index + 1}&per_page=${PAGE_SIZE}`,
+    );
     const results = await Promise.allSettled(
       urls.map((url) =>
         fetchText(url, {
@@ -54,7 +57,10 @@ export const busyAzScraper: Scraper = {
     }
 
     if (bodies.length === 0) {
-      throw results.find((result) => result.status === "rejected")?.reason ?? new Error("No busy.az pages fetched.");
+      throw (
+        results.find((result) => result.status === "rejected")?.reason ??
+        new Error("No busy.az pages fetched.")
+      );
     }
 
     return dedupeVacanciesByUrl(bodies.flatMap((body) => parseBusyAzVacancies(body)));
