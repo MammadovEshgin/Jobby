@@ -1,0 +1,26 @@
+name = "vakansiya-bot"
+main = "src/index.ts"
+compatibility_date = "2025-01-15"
+compatibility_flags = ["nodejs_compat"]
+
+# Hourly job aggregation. We pick minute 7 (not 0) to avoid the cron herd
+# that hits Cloudflare's infrastructure on every round hour.
+[triggers]
+crons = ["7 * * * *"]
+
+# D1 database binding. Run `wrangler d1 create vakansiya-bot` once,
+# then paste the returned database_id below before deploying.
+[[d1_databases]]
+binding = "DB"
+database_name = "vakansiya-bot"
+database_id = "81afb816-4339-44b4-946c-440426d49202"
+
+# Secrets (set via `wrangler secret put <NAME>`):
+#   BOT_TOKEN          — Telegram bot token from @BotFather
+#   WEBHOOK_SECRET     — random string; Telegram echoes it on every webhook
+#                        call via the X-Telegram-Bot-Api-Secret-Token header.
+#
+# Do NOT put real secret values here — wrangler.toml is committed.
+
+[observability]
+enabled = true

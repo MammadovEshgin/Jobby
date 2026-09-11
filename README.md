@@ -98,4 +98,3 @@ npm run tail
 ```
 
 Cron is configured for `7 * * * *`. Old sent-vacancy fingerprints are pruned daily during the Baku-local 03:xx run.
-"# Job-search-bot" 

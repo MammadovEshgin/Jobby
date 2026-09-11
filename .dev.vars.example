@@ -1,0 +1,5 @@
+# Copy this file to `.dev.vars` and fill in real values for local development.
+# `.dev.vars` is gitignored. For production, use `wrangler secret put <NAME>` instead.
+
+BOT_TOKEN=123456:ABC-your-telegram-bot-token
+WEBHOOK_SECRET=generate-a-long-random-string-here
