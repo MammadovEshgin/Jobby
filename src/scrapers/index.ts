@@ -18,17 +18,11 @@ const scrapers: Scraper[] = [
   vakansiyaAzScraper,
 ];
 
+/** A board that fails contributes nothing; the hourly run goes out with whatever the rest found. */
 export async function fetchAllVacancies(): Promise<RawVacancy[]> {
-  const results = await Promise.allSettled(scrapers.map(fetchFromScraper));
-  const vacancies: RawVacancy[] = [];
+  const found = await Promise.all(scrapers.map(fetchFromScraper));
 
-  for (const result of results) {
-    if (result.status === "fulfilled") {
-      vacancies.push(...result.value);
-    }
-  }
-
-  return vacancies;
+  return found.flat();
 }
 
 async function fetchFromScraper(scraper: Scraper): Promise<RawVacancy[]> {
@@ -48,6 +42,6 @@ async function fetchFromScraper(scraper: Scraper): Promise<RawVacancy[]> {
       found: 0,
       ms: Date.now() - startedAt,
     });
-    throw error;
+    return [];
   }
 }

@@ -2,9 +2,10 @@ import { parse } from "node-html-parser";
 
 import type { RawVacancy, Scraper } from "./types";
 import { dedupeVacanciesByUrl } from "./dedupe";
-import { fetchText } from "../utils/fetch";
-import { logInfo } from "../utils/log";
+import { fetchListingPages, userAgent } from "./pages";
+import { elementText, optionalText } from "./text";
 
+const SOURCE = "vakansiya.biz";
 const BASE_URL = "https://vakansiya.biz";
 const LISTING_URLS = [
   `${BASE_URL}/az/jobs`,
@@ -13,63 +14,34 @@ const LISTING_URLS = [
   `${BASE_URL}/az/jobs?page=4`,
   `${BASE_URL}/az/jobs?page=5`,
 ];
-const USER_AGENT = "Mozilla/5.0 (compatible; VakansiyaBot/0.1; +https://vakansiya.biz)";
+const HEADERS = {
+  "User-Agent": userAgent(BASE_URL),
+  Accept: "text/html",
+};
+const JOB_HREF = /\/jobs\/\d+\//;
 
 export const vakansiyaBizScraper: Scraper = {
-  name: "vakansiya.biz",
+  name: SOURCE,
   async fetch(): Promise<RawVacancy[]> {
-    const results = await Promise.allSettled(
-      LISTING_URLS.map((url) =>
-        fetchText(url, {
-          timeoutMs: 10_000,
-          headers: {
-            "User-Agent": USER_AGENT,
-            Accept: "text/html",
-          },
-        }),
-      ),
-    );
-    const pages: string[] = [];
-
-    for (const [index, result] of results.entries()) {
-      if (result.status === "fulfilled") {
-        pages.push(result.value);
-        continue;
-      }
-
-      logInfo("scraper_page_skipped", {
-        site: "vakansiya.biz",
-        url: LISTING_URLS[index],
-        reason: result.reason instanceof Error ? result.reason.message : "Unknown error",
-      });
-    }
-
-    if (pages.length === 0) {
-      throw (
-        results.find((result) => result.status === "rejected")?.reason ??
-        new Error("No vakansiya.biz pages fetched.")
-      );
-    }
+    const pages = await fetchListingPages(SOURCE, LISTING_URLS, HEADERS);
 
     return dedupeVacanciesByUrl(pages.flatMap((html) => parseVakansiyaBizVacancies(html)));
   },
 };
 
 export function parseVakansiyaBizVacancies(html: string): RawVacancy[] {
-  const root = parse(html);
   const vacancies: RawVacancy[] = [];
 
-  for (const link of root.querySelectorAll('a[href*="/jobs/"]')) {
+  for (const link of parse(html).querySelectorAll('a[href*="/jobs/"]')) {
     const href = link.getAttribute("href");
 
-    if (href === undefined || !/\/jobs\/\d+\//.test(href)) {
+    if (href === undefined || !JOB_HREF.test(href)) {
       continue;
     }
 
-    const title = cleanText(link.querySelector("h2")?.text);
+    const title = elementText(link.querySelector("h2"));
     // The subtitle holds "Company · Location" for every card on the board.
-    const [company, location] = splitSubtitle(cleanText(link.querySelector("p")?.text));
-    const postedAt = cleanText(link.querySelector("span")?.text);
+    const [company, location] = splitSubtitle(elementText(link.querySelector("p")));
 
     if (title.length === 0 || company.length === 0) {
       continue;
@@ -80,8 +52,8 @@ export function parseVakansiyaBizVacancies(html: string): RawVacancy[] {
       company,
       location,
       url: new URL(href, BASE_URL).toString(),
-      source: "vakansiya.biz",
-      postedAt: postedAt.length === 0 ? undefined : postedAt,
+      source: SOURCE,
+      postedAt: optionalText(link.querySelector("span")?.text),
     });
   }
 
@@ -96,8 +68,4 @@ function splitSubtitle(value: string): [string, string] {
   }
 
   return [value.slice(0, separator).trim(), value.slice(separator + 1).trim()];
-}
-
-function cleanText(value: string | undefined): string {
-  return (value ?? "").replace(/\s+/g, " ").trim();
 }

@@ -1,0 +1,92 @@
+# Deslop plan
+
+Branch `deslop/2026-09-11` from `master` @ `4b79f80` · check: `npm run check` · baseline 86/86 · complexity max 11 · erosion 6% · 273 functions
+Excluded: `node_modules/`, `.wrangler/`, `.claude/`, `package-lock.json`, `tests/fixtures/` (recorded responses), `schema.sql`, `wrangler.toml`, `assets/`
+Flags: audit on · structure on
+
+Preflight cleared 2026-09-11: setup committed as `4b79f80`, branch `deslop/2026-09-11` created
+from `master`. Baseline re-measured on the branch: check **pass** · 86/86 tests · 11 lint warnings
+(the ratcheted `eslint-plugin-security` findings) · complexity max 11 · erosion 6%.
+
+## Slices
+
+| # | Slice | Files | Lines | CC max | Churn | Entry points | Tests | Status |
+|---|---|---|---|---|---|---|---|---|
+| 1 | `src/scrapers` + `tests/scrapers` | 17 | 891 | 11 | 25 | 7 | direct (7/10 files) | done PENDING_SHA · net -71 src · CC max 11 → 10 · tests 14 → 52 |
+| 2 | `src/matching` + `tests/match,normalize` | 6 | 1,355 | 6 | 8 | 0 | direct + strong (56) | pending |
+| 3 | `src/pipeline` + `tests/pipeline,format` | 4 | 624 | 8 | 9 | 0 | direct (13) | pending |
+| 4 | `src/commands` | 7 | 216 | 7 | 12 | 7 | none | pending |
+| 5 | `src/db` | 4 | 411 | 5 | 8 | 1 | none | pending |
+| 6 | `src/utils` + `scripts` + `tests/fingerprint` | 5 | 211 | 7 | 6 | 0 | partial (1/3) | pending |
+| 7 | `src/bot.ts` + `src/index.ts` | 2 | 149 | 4 | 6 | 2 | none | pending |
+| 8 | `README.md`, `AGENTS.md`, `CODING_STANDARDS.md` | 3 | 298 | n/a | — | 0 | n/a | pending |
+
+## Why this order
+
+Tier 1 — has tests, leaf module, highest value. **Slice 1** carries every hotspot in the repo
+(all three functions over budget, erosion 22% against 6% repo-wide), the most churn (25), and seven
+untrusted-input entry points. It is imported only by `src/pipeline`, so it is safe to reshape first.
+**Slice 2** has the strongest test lock in the repo (56 assertions) and is a leaf behind `match.ts`;
+`lexicon.ts` is 756 lines of vocabulary data, so expect pass 11 (docs) and pass 2 (comments) to
+dominate and pass 8 (hotspots) to be empty.
+
+Tier 2 — has tests, but consumes the tiers above. **Slice 3** orchestrates the hourly run and imports
+db, matching, scrapers and utils; cleaning it after its dependencies means its seams are already
+settled.
+
+Tier 3 — no test signal, so rule 1 applies: characterization tests at the public interface come
+first, or the slice is reported untestable rather than cleaned. **Slice 4** goes first of these on
+churn (12, the highest outside slice 1) and because all seven commands parse raw user message text.
+**Slice 5** holds the only other untrusted sink (`manual-search.ts` takes user search terms into D1).
+
+Tier 4 — shared and core, last, so everything cleaned above already uses their interfaces.
+**Slice 6** merges three tiny siblings (`utils` 3 files, `scripts` 1 file) per the merge rule.
+**Slice 7** is the Worker entry layer and the repo's most security-sensitive surface (webhook secret
+check, `scheduled` fan-out); it is audited with everything beneath it already clean.
+
+**Slice 8** is the docs slice, last by rule.
+
+## Judgment calls
+
+- **Slice 1 is 17 files, over the ~15 guideline.** Kept whole: it is 891 lines (well under the 1,500
+  line limit) and splitting it would cut the module's shared seam (`index.ts`, `types.ts`,
+  `dedupe.ts`) away from the seven parsers that use it, which is exactly the context a worker needs.
+- **`tests/fixtures/` is excluded** as recorded responses. Pass 10 may still judge whether a fixture
+  earns its place; it must not rewrite fixture bodies to make a test pass (hard rule 7).
+- **`src/matching/lexicon.ts` has `max-lines` disabled** in `eslint.config.mjs` — it is a data table
+  with zero functions. A worker must not "fix" it by splitting the word list.
+- **Indirect coverage:** `analyze.ts`, `lexicon.ts` and `normalize.ts` are exercised through
+  `match.test.ts`, not directly. `dedupe.ts` is used only on the fetch path, which no test enters —
+  treat it as untested in slice 1.
+- **Two ratchets are open** in `CODING_STANDARDS.md` (complexity ceiling 11 → target 10; lint
+  `--max-warnings 11` → target 0). Slice 1 pass 8 should close the complexity ratchet. The eleven
+  `eslint-plugin-security` warnings are the audit's candidate list, spread over slices 1, 2 and 4.
+
+## Untested files (rule 1 applies before any cleanup)
+
+`bot.ts`, `index.ts`, `commands/*` (7), `db/*` (4), `scrapers/dedupe.ts`, `scrapers/index.ts`,
+`utils/fetch.ts`, `utils/log.ts`, `scripts/set-webhook.ts`
+
+## Found, not changed
+
+<!-- appended per slice as the run proceeds -->
+
+### Slice 1 — found, not changed (from the worker)
+
+- `src/scrapers/busy-az.ts:44`, `glorri-az.ts:69` — **behaviour changed on purpose.** Both parsers
+  threw `TypeError` on the literal body `null`, violating the never-throw contract. The typed JSON
+  boundary returns `[]` instead; `tests/scrapers/contract.test.ts` locks it for all seven parsers.
+  Audit candidate.
+- The three `security/detect-object-injection` findings in this slice are **gone, not suppressed** —
+  they were `urls[index]` re-derivations inside the duplicated fan-outs. CODING_STANDARDS.md line
+  references are now stale (that file is outside the slice).
+- `src/scrapers/glorri-az.ts:31-56` — the one fan-out left un-merged; routing it through
+  `fetchListingPages` would change operator-visible log output from an aggregate to per-page lines.
+  Needs a decision.
+- `src/scrapers/glorri-az.ts:48` — unreachable else branch, type-required today; disappears with the
+  item above.
+- `busy-az.ts:69` (`cityName`) and `glorri-az.ts:72` (`parseGlorriAzVacancies`) sit exactly at CC 10.
+- `timeoutMs: 10_000` repeated in jobsearch-az, smartjob-az, vakansiya-az equals `fetchText`'s own
+  `DEFAULT_TIMEOUT_MS` — three copies of a default.
+- `tests/fixtures/hellojob-az.html` has no duplicate links, so hellojob's parse-level dedupe is
+  covered by an inline test rather than the fixture.
