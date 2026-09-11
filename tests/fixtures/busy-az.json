@@ -1,0 +1,107 @@
+{
+  "count": 114024,
+  "current_page": 1,
+  "per_page": 100,
+  "vacancies": [
+    {
+      "id": 190812,
+      "job_title": "Руководитель филиала",
+      "slug": "rukovoditel-filiala-379601",
+      "published": "2026-09-10 00:00:00",
+      "company": {
+        "id": 19986,
+        "title": "Gerter Group",
+        "slug": "gerter-group"
+      },
+      "city_rels": [
+        {
+          "city": {
+            "id": 1,
+            "title": {
+              "az": "Bakı",
+              "en": "Baku",
+              "ru": "Baku"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 190704,
+      "job_title": "ƏRAZİ MENECERİ",
+      "slug": "ərazi-meneceri",
+      "published": "2026-09-09 00:00:00",
+      "company": {
+        "id": 19569,
+        "title": "Peçat Dönər",
+        "slug": null
+      },
+      "city_rels": [
+        {
+          "city": {
+            "id": 1,
+            "title": {
+              "az": "Bakı",
+              "en": "Baku",
+              "ru": "Baku"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 190701,
+      "job_title": "FİLİAL MÜDİRİ",
+      "slug": "fi-li-al-müdi-ri",
+      "published": "2026-09-09 00:00:00",
+      "company": {
+        "id": 19569,
+        "title": "Peçat Dönər",
+        "slug": null
+      },
+      "city_rels": [
+        {
+          "city": {
+            "id": 1,
+            "title": {
+              "az": "Bakı",
+              "en": "Baku",
+              "ru": "Baku"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 191112,
+      "job_title": "Administrative Manager",
+      "slug": "administrative-manager",
+      "published": "2026-09-11 00:00:00",
+      "company": {
+        "id": 16503,
+        "title": "Dahua Technology Azerbaijan MMC",
+        "slug": "dahua-technology-azerbaijan-mmc"
+      },
+      "city_rels": [
+        {
+          "city": {
+            "id": 1,
+            "title": {
+              "az": "Bakı",
+              "en": "Baku",
+              "ru": "Baku"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 190999,
+      "job_title": "   ",
+      "slug": "bos",
+      "published": "2026-09-09 00:00:00",
+      "company": null,
+      "city_rels": []
+    }
+  ]
+}

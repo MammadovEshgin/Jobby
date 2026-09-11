@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { matchField, matchFields, matchesAnyField } from "../src/matching/match";
+import { matchTitle } from "../src/matching/match";
 
 function matches(title: string, field: string): boolean {
-  return matchField({ title }, field).matched;
+  return matchTitle(title, field).matched;
 }
 
 describe("cross-language matching", () => {
@@ -150,30 +150,30 @@ describe("multiple saved fields", () => {
   const fields = ["music teacher", "backend developer"];
 
   it("matches a vacancy that fits any field", () => {
-    expect(matchesAnyField({ title: "Musiqi müəllimi" }, fields)).toBe(true);
-    expect(matchesAnyField({ title: "Java Developer" }, fields)).toBe(true);
+    expect(matchTitle("Musiqi müəllimi", fields).matched).toBe(true);
+    expect(matchTitle("Java Developer", fields).matched).toBe(true);
   });
 
   it("rejects a vacancy that fits none", () => {
-    expect(matchesAnyField({ title: "Fizika müəllimi" }, fields)).toBe(false);
-    expect(matchesAnyField({ title: "Ofisiant" }, fields)).toBe(false);
+    expect(matchTitle("Fizika müəllimi", fields).matched).toBe(false);
+    expect(matchTitle("Ofisiant", fields).matched).toBe(false);
   });
 
   it("returns no match for an empty field list", () => {
-    expect(matchesAnyField({ title: "Musiqi müəllimi" }, [])).toBe(false);
+    expect(matchTitle("Musiqi müəllimi", []).matched).toBe(false);
   });
 });
 
 describe("scoring", () => {
   it("ranks the tightest title first", () => {
-    const exact = matchField({ title: "Musiqi müəllimi" }, "musiqi müəllimi").score;
-    const looser = matchField({ title: "Musiqi və rəqs müəllimi, Bakı filialı" }, "musiqi müəllimi").score;
+    const exact = matchTitle("Musiqi müəllimi", "musiqi müəllimi").score;
+    const looser = matchTitle("Musiqi və rəqs müəllimi, Bakı filialı", "musiqi müəllimi").score;
 
     expect(exact).toBeGreaterThan(looser);
   });
 
   it("reports the best score across fields", () => {
-    const result = matchFields({ title: "Backend Developer" }, ["developer", "backend developer"]);
+    const result = matchTitle("Backend Developer", ["developer", "backend developer"]);
 
     expect(result.matched).toBe(true);
     expect(result.score).toBeGreaterThan(0);

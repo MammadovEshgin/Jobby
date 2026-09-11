@@ -11,12 +11,18 @@ export interface Env {
 }
 
 export default {
-  async fetch(request: Request, env: Env): Promise<Response> {
+  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     if (request.method !== "POST") {
       return new Response("vakansiya-bot is alive", { status: 200 });
     }
 
-    const bot = createBot(env);
+    const bot = createBot({
+      DB: env.DB,
+      BOT_TOKEN: env.BOT_TOKEN,
+      waitUntil: (promise) => {
+        ctx.waitUntil(promise);
+      },
+    });
     const handleUpdate = webhookCallback(bot, "cloudflare-mod", {
       secretToken: env.WEBHOOK_SECRET,
       onTimeout: "return",

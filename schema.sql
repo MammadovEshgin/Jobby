@@ -38,3 +38,19 @@ CREATE TABLE IF NOT EXISTS manual_search_log (
   last_run_at  INTEGER NOT NULL,
   FOREIGN KEY (telegram_id) REFERENCES users(telegram_id) ON DELETE CASCADE
 );
+
+-- Latest scrape, kept so /axtar can answer instantly instead of re-scraping
+-- every source inside the webhook request. `seen_at` is the last time a source
+-- still listed the vacancy, which is how we tell open postings from filled ones.
+CREATE TABLE IF NOT EXISTS vacancy_snapshot (
+  fingerprint  TEXT PRIMARY KEY,       -- sha256(normalize(title) | normalize(company))
+  title        TEXT    NOT NULL,
+  company      TEXT    NOT NULL,
+  location     TEXT    NOT NULL,
+  url          TEXT    NOT NULL,
+  source       TEXT    NOT NULL,
+  posted_at    TEXT,
+  seen_at      INTEGER NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_vacancy_snapshot_seen ON vacancy_snapshot(seen_at);

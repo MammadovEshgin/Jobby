@@ -7,10 +7,6 @@ export interface MatchResult {
   score: number;
 }
 
-export interface SearchableVacancy {
-  title: string;
-}
-
 /** A title or a saved field, analysed once so it can be reused across a run. */
 export interface CompiledText {
   raw: string;
@@ -51,17 +47,9 @@ export function matchCompiled(title: CompiledText, fields: readonly CompiledText
   return best;
 }
 
-export function matchField(vacancy: SearchableVacancy, field: string): MatchResult {
-  return matchOne(compile(vacancy.title), compile(field));
-}
-
-/** Best match across all of a user's saved fields. */
-export function matchFields(vacancy: SearchableVacancy, fields: readonly string[]): MatchResult {
-  return matchCompiled(compile(vacancy.title), compileAll(fields));
-}
-
-export function matchesAnyField(vacancy: SearchableVacancy, fields: readonly string[]): boolean {
-  return matchFields(vacancy, fields).matched;
+/** Convenience wrapper for one-off matches; the pipeline uses `matchCompiled`. */
+export function matchTitle(title: string, fields: string | readonly string[]): MatchResult {
+  return matchCompiled(compile(title), compileAll(typeof fields === "string" ? [fields] : fields));
 }
 
 function matchOne(title: CompiledText, field: CompiledText): MatchResult {

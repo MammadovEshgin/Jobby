@@ -12,6 +12,8 @@ import { registerStopCommand } from "./commands/stop";
 export interface BotEnv {
   DB: D1Database;
   BOT_TOKEN: string;
+  /** Keeps work alive after the webhook response (Cloudflare ExecutionContext). */
+  waitUntil(promise: Promise<unknown>): void;
 }
 
 export interface BotContext extends Context {

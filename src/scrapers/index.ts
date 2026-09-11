@@ -1,7 +1,9 @@
+import { busyAzScraper } from "./busy-az";
 import { glorriAzScraper } from "./glorri-az";
 import { helloJobAzScraper } from "./hellojob-az";
 import { jobSearchAzScraper } from "./jobsearch-az";
 import { smartJobAzScraper } from "./smartjob-az";
+import { vakansiyaAzScraper } from "./vakansiya-az";
 import { vakansiyaBizScraper } from "./vakansiya-biz";
 import type { RawVacancy, Scraper } from "./types";
 import { logError, logInfo } from "../utils/log";
@@ -9,9 +11,11 @@ import { logError, logInfo } from "../utils/log";
 export const scrapers: Scraper[] = [
   helloJobAzScraper,
   jobSearchAzScraper,
+  busyAzScraper,
   smartJobAzScraper,
   glorriAzScraper,
   vakansiyaBizScraper,
+  vakansiyaAzScraper,
 ];
 
 export async function fetchAllVacancies(): Promise<RawVacancy[]> {

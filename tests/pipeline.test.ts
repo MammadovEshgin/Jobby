@@ -1,12 +1,18 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { MANUAL_SEARCH_LIMIT, runPipeline, runPipelineForUser } from "../src/pipeline/run";
+import { MANUAL_SEARCH_LIMIT, runManualSearch, runPipeline } from "../src/pipeline/run";
 import type { RawVacancy } from "../src/scrapers/types";
 
-const { vacancies } = vi.hoisted(() => ({ vacancies: { current: [] as RawVacancy[] } }));
+const { vacancies, scrapeCalls } = vi.hoisted(() => ({
+  vacancies: { current: [] as RawVacancy[] },
+  scrapeCalls: { count: 0 },
+}));
 
 vi.mock("../src/scrapers", () => ({
-  fetchAllVacancies: async () => vacancies.current,
+  fetchAllVacancies: async () => {
+    scrapeCalls.count += 1;
+    return vacancies.current;
+  },
 }));
 
 function vacancy(title: string, company = "Acme"): RawVacancy {
@@ -19,9 +25,21 @@ function vacancy(title: string, company = "Acme"): RawVacancy {
   };
 }
 
-/** Just enough of D1 for the pipeline: users, their fields and what was sent. */
-function fakeDb(fields: string[], sent: string[] = []): D1Database {
-  const sentFingerprints = new Set(sent);
+interface SnapshotRow {
+  fingerprint: string;
+  title: string;
+  company: string;
+  location: string;
+  url: string;
+  source: string;
+  posted_at: string | null;
+  seen_at: number;
+}
+
+/** Just enough of D1 for the pipeline: users, their fields, sent ids and the snapshot. */
+function fakeDb(fields: string[]): D1Database {
+  const sent = new Set<string>();
+  const snapshot = new Map<string, SnapshotRow>();
 
   const statement = (sql: string, values: unknown[] = []): D1PreparedStatement =>
     ({
@@ -40,7 +58,11 @@ function fakeDb(fields: string[], sent: string[] = []): D1Database {
         }
 
         if (sql.includes("FROM sent_vacancies")) {
-          return { results: [...sentFingerprints].map((fingerprint) => ({ fingerprint })) };
+          return { results: [...sent].map((fingerprint) => ({ fingerprint })) };
+        }
+
+        if (sql.includes("FROM vacancy_snapshot")) {
+          return { results: [...snapshot.values()] };
         }
 
         return { results: [] };
@@ -50,7 +72,21 @@ function fakeDb(fields: string[], sent: string[] = []): D1Database {
       },
       async run() {
         if (sql.includes("INSERT INTO sent_vacancies")) {
-          sentFingerprints.add(String(values[0]));
+          sent.add(String(values[0]));
+        }
+
+        if (sql.includes("INSERT INTO vacancy_snapshot")) {
+          const [fingerprint, title, company, location, url, source, postedAt, seenAt] = values;
+          snapshot.set(String(fingerprint), {
+            fingerprint: String(fingerprint),
+            title: String(title),
+            company: String(company),
+            location: String(location),
+            url: String(url),
+            source: String(source),
+            posted_at: postedAt === null ? null : String(postedAt),
+            seen_at: Number(seenAt),
+          });
         }
 
         return { meta: { changes: 0 } };
@@ -61,10 +97,11 @@ function fakeDb(fields: string[], sent: string[] = []): D1Database {
   return {
     prepare: (sql: string) => statement(sql),
     async batch(statements: D1PreparedStatement[]) {
-      return await Promise.all(statements.map(async (item) => await (item as unknown as { run: () => Promise<unknown> }).run()));
+      return await Promise.all(
+        statements.map(async (item) => await (item as unknown as { run: () => Promise<unknown> }).run()),
+      );
     },
-    sentFingerprints,
-  } as unknown as D1Database & { sentFingerprints: Set<string> };
+  } as unknown as D1Database;
 }
 
 function sentMessages(): string[] {
@@ -75,6 +112,7 @@ function sentMessages(): string[] {
 }
 
 beforeEach(() => {
+  scrapeCalls.count = 0;
   vi.stubGlobal(
     "fetch",
     vi.fn(async () => new Response("{}", { status: 200 })),
@@ -135,15 +173,46 @@ describe("runPipeline", () => {
     expect(first.vacanciesSent).toBe(1);
     expect(second.vacanciesSent).toBe(0);
   });
+
+  it("keeps delivering to other users when one chat rejects the message", async () => {
+    vacancies.current = [vacancy("Musiqi müəllimi")];
+    vi.mocked(globalThis.fetch).mockResolvedValueOnce(new Response("{}", { status: 403 }));
+
+    const result = await runPipeline({ DB: fakeDb(["musiqi muellimi"]), BOT_TOKEN: "token" });
+
+    expect(result.vacanciesSent).toBe(0);
+  });
 });
 
-describe("runPipelineForUser", () => {
+describe("runManualSearch", () => {
+  it("answers from the stored snapshot instead of scraping again", async () => {
+    vacancies.current = [vacancy("Musiqi müəllimi")];
+
+    const db = fakeDb(["musiqi muellimi"]);
+    await runPipeline({ DB: db, BOT_TOKEN: "token" });
+    scrapeCalls.count = 0;
+
+    const manual = await runManualSearch({ DB: db, BOT_TOKEN: "token" }, 1);
+
+    expect(scrapeCalls.count).toBe(0);
+    expect(manual.vacanciesSent).toBe(1);
+  });
+
+  it("scrapes once when no snapshot exists yet", async () => {
+    vacancies.current = [vacancy("Musiqi müəllimi")];
+
+    const manual = await runManualSearch({ DB: fakeDb(["musiqi muellimi"]), BOT_TOKEN: "token" }, 1);
+
+    expect(scrapeCalls.count).toBe(1);
+    expect(manual.vacanciesSent).toBe(1);
+  });
+
   it("returns every open match, including ones already delivered", async () => {
     vacancies.current = [vacancy("Musiqi müəllimi"), vacancy("Music Teacher", "Other")];
 
     const db = fakeDb(["musiqi muellimi"]);
     await runPipeline({ DB: db, BOT_TOKEN: "token" });
-    const manual = await runPipelineForUser({ DB: db, BOT_TOKEN: "token" }, 1);
+    const manual = await runManualSearch({ DB: db, BOT_TOKEN: "token" }, 1);
 
     expect(manual.vacanciesSent).toBe(2);
     expect(manual.truncated).toBe(false);
@@ -154,7 +223,7 @@ describe("runPipelineForUser", () => {
       vacancy(`Musiqi müəllimi ${index}`, `Company ${index}`),
     );
 
-    const manual = await runPipelineForUser({ DB: fakeDb(["musiqi muellimi"]), BOT_TOKEN: "token" }, 1);
+    const manual = await runManualSearch({ DB: fakeDb(["musiqi muellimi"]), BOT_TOKEN: "token" }, 1);
 
     expect(manual.vacanciesSent).toBe(MANUAL_SEARCH_LIMIT);
     expect(manual.truncated).toBe(true);

@@ -26,7 +26,5 @@ coverage/
 # TypeScript build info
 *.tsbuildinfo
 
-# AI/Project planning
+# AI tooling
 .claude/
-plan.md
-progress.md
