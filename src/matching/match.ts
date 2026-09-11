@@ -39,7 +39,9 @@ export function matchCompiled(title: CompiledText, fields: readonly CompiledText
   for (const field of fields) {
     const result = matchOne(title, field);
 
-    if (result.matched && result.score > best.score) {
+    // `best.matched` first: a crowded title can score at or below zero, and
+    // comparing scores alone would throw that match away as if it never matched.
+    if (result.matched && (!best.matched || result.score > best.score)) {
       best = result;
     }
   }

@@ -193,6 +193,40 @@ describe("scoring", () => {
   });
 });
 
+describe("crowded titles", () => {
+  // Aggregated "hiring for everything" posts are common on the local boards.
+  const listing =
+    "Satıcı, kassir, sürücü, aşpaz, ofisiant, mühafizəçi, xadimə, anbardar, kuryer, mühasib, " +
+    "hüquqşünas, həkim, tibb bacısı, bərbər, dərzi, operator, menecer, dizayner, proqramçı, " +
+    "rəssam, fotoqraf, tərcüməçi, musiqi müəllimi tələb olunur";
+
+  it("still matches when the title stacks more extra ideas than the score can absorb", () => {
+    expect(matches(listing, "music teacher")).toBe(true);
+  });
+
+  it("ranks a crowded title below a tight one instead of dropping it", () => {
+    const tight = matchTitle("Musiqi müəllimi", "music teacher");
+    const crowded = matchTitle(listing, "music teacher");
+
+    expect(crowded.matched).toBe(true);
+    expect(tight.score).toBeGreaterThan(crowded.score);
+  });
+
+  it("keeps rejecting a crowded title that is missing an idea", () => {
+    expect(matches(listing, "fizika müəllimi")).toBe(false);
+  });
+});
+
+describe("decomposed characters", () => {
+  it("matches a title whose letters arrive decomposed", () => {
+    expect(matches("Musiqi müəllimi".normalize("NFD"), "music teacher")).toBe(true);
+  });
+
+  it("matches a saved field whose letters arrive decomposed", () => {
+    expect(matches("Music Teacher", "musiqi müəllimi".normalize("NFD"))).toBe(true);
+  });
+});
+
 describe("compiled matching", () => {
   it("matches a title compiled once against fields compiled once", () => {
     const title = compile("Musiqi müəllimi");

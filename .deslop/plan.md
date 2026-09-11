@@ -13,7 +13,7 @@ from `master`. Baseline re-measured on the branch: check **pass** · 86/86 tests
 | # | Slice | Files | Lines | CC max | Churn | Entry points | Tests | Status |
 |---|---|---|---|---|---|---|---|---|
 | 1 | `src/scrapers` + `tests/scrapers` | 17 | 891 | 11 | 25 | 7 | direct (7/10 files) | done 6a52c7a · fix 6ad840e · net -71 src · CC max 11 → 10 · tests 14 → 58 |
-| 2 | `src/matching` + `tests/match,normalize` | 6 | 1,355 | 6 | 8 | 0 | direct + strong (56) | done PENDING · net +2 prod · CC 6 → 6 · tests 56 → 65 |
+| 2 | `src/matching` + `tests/match,normalize` | 6 | 1,355 | 6 | 8 | 0 | direct + strong (56) | done dc4c529 · fix PENDING2 · net +2 prod · CC 6 → 6 · tests 56 → 71 |
 | 3 | `src/pipeline` + `tests/pipeline,format` | 4 | 624 | 8 | 9 | 0 | direct (13) | pending |
 | 4 | `src/commands` | 7 | 216 | 7 | 12 | 7 | none | pending |
 | 5 | `src/db` | 4 | 411 | 5 | 8 | 1 | none | pending |
@@ -128,3 +128,42 @@ Reported, not fixed:
 - `normalize.ts:1-21` — `DIACRITICS` and the regex class are kept in sync by hand. Deriving one from
   the other needs `new RegExp`, which adds a `detect-non-literal-regexp` warning. Needs a decision.
 - Probes 12/14: the two survivors are the two equivalent mutants above, both documented.
+
+### Slice 2 — audit findings
+
+Fixed (behaviour changed, each proven red-first):
+- `match.ts:42` — **high.** A title carrying 21+ concepts the field does not (the aggregated
+  `Satici, kassir, surucu, ... musiqi muellimi teleb olunur` listing, routine on these boards) scores
+  negative, and `matchCompiled` compared `result.score > best.score` against a `NO_MATCH` sentinel of
+  score 0, so a real match was thrown away as unmatched. Silent false negative: the user never sees
+  the job. Now `!best.matched || result.score > best.score`.
+- `normalize.ts:19` — a title whose letters arrive decomposed (NFD: `u` + U+0308 instead of `ü`) lost
+  the combining mark as punctuation and split the word in two, so the NFD form of a title failed
+  where the NFC form matched. `.normalize("NFC")` added. Same `normalize` backs `utils/fingerprint`,
+  so NFD/NFC duplicates of one vacancy now collapse as well.
+
+Reported, needs a decision (all three are vocabulary or contract calls, not code bugs):
+- **`lexicon.ts` `dotnet` term `"c#"`** — `normalize("c#") === "c"`, so the index holds a one-letter
+  term. `matchTitle("Surucu (B, C kateqoriyali)", "C#")` matches with score 848; so does
+  `"Hepatit C uzre hekim"`. Mirror image: `"Surucu"` vs field `"surucu c"` is false while
+  `"surucu b"` is true, contradicting the `ignores stray single letters` test. Fix is either
+  dropping the term or keeping `#`/`+` in `normalize` — both change matching vocabulary.
+- `normalize.ts:23` — invisible characters (soft hyphen U+00AD, ZWSP, ZWNJ) act as word separators,
+  so `"Musiqi mu<shy>ellimi"` misses `music teacher`. Ruling that a zero-width space never separates
+  words is a contract change.
+- `normalize.ts:23` — full-width forms (`Ｍｕｓｉｃ`) match nothing; NFKC would fold them but also
+  rewrites `1/2`, `No.` and ligatures across every title and field.
+
+Assessed and dismissed: all six `eslint-plugin-security` findings in this slice are noise. The four
+`detect-object-injection` in `analyze.ts` are `tokens[index]` reads with a counter the function
+advances; `detect-possible-timing-attacks` compares two job-title words with no secret in the module;
+`normalize.ts` was proven safe by enumerating the regex class against `DIACRITICS` keys at runtime
+(empty difference, so no prototype key is reachable).
+
+The three guards slice 2 removed were each verified unreachable rather than assumed: the diacritics
+fallback by the same enumeration, `normalize`-in-`tokenize` by brute-forcing idempotence over every
+Unicode code point, and the empty-token check by showing both requirement kinds are unsatisfiable
+when a title has no tokens.
+
+Unbounded work measured, no finding: `analyze` is linear (400k-char title 66ms); worst realistic
+pipeline shape (50 users x 20 fields x 2000 candidates) is 107ms.

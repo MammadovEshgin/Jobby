@@ -17,7 +17,11 @@ const DIACRITICS: Record<string, string> = {
 };
 
 export function normalize(value: string): string {
+  // Boards and Telegram clients send the same letter both precomposed and
+  // decomposed ("ü" vs "u" + U+0308). Compose first, or the combining mark is
+  // dropped as punctuation and splits the word in two.
   return value
+    .normalize("NFC")
     .replace(/[əƏıIİüÜöÖşŞçÇğĞ]/g, (char) => DIACRITICS[char])
     .toLowerCase()
     .replace(/[^\p{L}\p{N}]+/gu, " ")

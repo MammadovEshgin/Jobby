@@ -20,6 +20,12 @@ describe("normalize", () => {
   it("returns an empty string when nothing is a letter or a digit", () => {
     expect(normalize(" -- // ")).toBe("");
   });
+
+  it("folds decomposed letters exactly like precomposed ones", () => {
+    const precomposed = "İnformasiya Texnologiyaları üzrə Mütəxəssis";
+
+    expect(normalize(precomposed.normalize("NFD"))).toBe(normalize(precomposed));
+  });
 });
 
 describe("tokenize", () => {
