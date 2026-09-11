@@ -12,8 +12,8 @@ from `master`. Baseline re-measured on the branch: check **pass** · 86/86 tests
 
 | # | Slice | Files | Lines | CC max | Churn | Entry points | Tests | Status |
 |---|---|---|---|---|---|---|---|---|
-| 1 | `src/scrapers` + `tests/scrapers` | 17 | 891 | 11 | 25 | 7 | direct (7/10 files) | done 6a52c7a · fix PENDING_FIX · net -71 src · CC max 11 → 10 · tests 14 → 58 |
-| 2 | `src/matching` + `tests/match,normalize` | 6 | 1,355 | 6 | 8 | 0 | direct + strong (56) | pending |
+| 1 | `src/scrapers` + `tests/scrapers` | 17 | 891 | 11 | 25 | 7 | direct (7/10 files) | done 6a52c7a · fix 6ad840e · net -71 src · CC max 11 → 10 · tests 14 → 58 |
+| 2 | `src/matching` + `tests/match,normalize` | 6 | 1,355 | 6 | 8 | 0 | direct + strong (56) | done PENDING · net +2 prod · CC 6 → 6 · tests 56 → 65 |
 | 3 | `src/pipeline` + `tests/pipeline,format` | 4 | 624 | 8 | 9 | 0 | direct (13) | pending |
 | 4 | `src/commands` | 7 | 216 | 7 | 12 | 7 | none | pending |
 | 5 | `src/db` | 4 | 411 | 5 | 8 | 1 | none | pending |
@@ -113,3 +113,18 @@ Reported, not fixed:
   steady 403 costs three requests and the 10 s timeout is per attempt. Out of scope (slice 6).
 - `CODING_STANDARDS.md:61-71` — the ratchet and the three detect-object-injection entries are stale;
   in-slice eslint is now 0, repo-wide 8. Orchestrator closes this at the end of the run.
+
+### Slice 2 — found, not changed (from the worker)
+
+- `lexicon.ts` — `kind` on all 157 concepts, and `ConceptKind` behind it, are never read. Removal is
+  behaviour-free, but Prettier then reflows ~1400 lines of the vocabulary table, which no reviewer
+  can eyeball for vocabulary drift inside a refactor commit. Needs its own commit.
+- `match.ts:51` — `matchTitle` has no production caller; it exists for the 65-test lock. Kept
+  deliberately: deleting it means rewriting every test for no gain.
+- `analyze.ts:260` — the `includes` dedup in `addConceptId` is an equivalent mutant; it only stops
+  duplicate lexicon entries growing an array. Kept, untested.
+- `analyze.ts:137` — the phrase-tie tiebreak has no pair in the lexicon that reaches it; mutant
+  survives with no behaviour to lock.
+- `normalize.ts:1-21` — `DIACRITICS` and the regex class are kept in sync by hand. Deriving one from
+  the other needs `new RegExp`, which adds a `detect-non-literal-regexp` warning. Needs a decision.
+- Probes 12/14: the two survivors are the two equivalent mutants above, both documented.

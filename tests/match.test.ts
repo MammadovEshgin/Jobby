@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { matchTitle } from "../src/matching/match";
+import { compile, compileAll, matchCompiled, matchTitle } from "../src/matching/match";
 
 function matches(title: string, field: string): boolean {
   return matchTitle(title, field).matched;
@@ -130,6 +130,11 @@ describe("noisy titles", () => {
     expect(matches("Backend Developer", "senior backend developer")).toBe(true);
     expect(matches("Musiqi müəllimi", "musiqi müəllimi vakansiyası tam iş günü")).toBe(true);
   });
+
+  it("ignores stray single letters and bare numbers in the search text", () => {
+    expect(matches("Sürücü", "sürücü b")).toBe(true);
+    expect(matches("Mühasib", "mühasib 2")).toBe(true);
+  });
 });
 
 describe("azerbaijani suffixes", () => {
@@ -139,6 +144,7 @@ describe("azerbaijani suffixes", () => {
     ["Mühasibə tələbat", "mühasib"],
     ["Satış meneceri", "satış meneceri"],
     ["Satış menecerləri", "satış meneceri"],
+    ["Məktəb müəllimlərinə ehtiyac var", "müəllim"],
   ];
 
   it.each(inflected)("handles %s", (title, field) => {
@@ -172,11 +178,49 @@ describe("scoring", () => {
     expect(exact).toBeGreaterThan(looser);
   });
 
+  it("ranks a title that adds fewer ideas above a busier one", () => {
+    const plain = matchTitle("Musiqi müəllimi tələb olunur", "music teacher").score;
+    const busier = matchTitle("Musiqi və rəqs müəllimi", "music teacher").score;
+
+    expect(plain).toBeGreaterThan(busier);
+  });
+
   it("reports the best score across fields", () => {
     const result = matchTitle("Backend Developer", ["developer", "backend developer"]);
 
     expect(result.matched).toBe(true);
     expect(result.score).toBeGreaterThan(0);
+  });
+});
+
+describe("compiled matching", () => {
+  it("matches a title compiled once against fields compiled once", () => {
+    const title = compile("Musiqi müəllimi");
+
+    expect(matchCompiled(title, compileAll(["backend developer", "music teacher"])).matched).toBe(
+      true,
+    );
+    expect(matchCompiled(title, compileAll(["backend developer"])).matched).toBe(false);
+  });
+
+  it("reports the score of the tightest matching field", () => {
+    const title = compile("Backend Developer");
+    const loose = matchCompiled(title, compileAll(["developer"]));
+    const tight = matchCompiled(title, compileAll(["developer", "backend developer"]));
+
+    expect(tight.score).toBeGreaterThan(loose.score);
+  });
+});
+
+describe("searches the lexicon does not know", () => {
+  it("requires an unknown search word to appear in the title", () => {
+    expect(matches("Zumba təlimçisi", "zumba müəllim")).toBe(true);
+    expect(matches("Şahmat müəllimi", "zumba müəllim")).toBe(false);
+  });
+
+  it("falls back to literal words when the search carries no concept at all", () => {
+    expect(matches("Satış üzrə mütəxəssis", "mütəxəssis")).toBe(true);
+    expect(matches("Sürücü", "mütəxəssis")).toBe(false);
   });
 });
 

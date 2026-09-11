@@ -26,7 +26,7 @@ export interface ConceptDefinition {
 }
 
 export const CONCEPTS: readonly ConceptDefinition[] = [
-  // ── Roles: teaching ──────────────────────────────────────────────────────
+  // Roles: teaching
   {
     id: "teacher",
     kind: "role",
@@ -60,7 +60,7 @@ export const CONCEPTS: readonly ConceptDefinition[] = [
     terms: ["metodist", "методист"],
   },
 
-  // ── Roles: technology ────────────────────────────────────────────────────
+  // Roles: technology
   {
     id: "software-developer",
     kind: "role",
@@ -92,7 +92,7 @@ export const CONCEPTS: readonly ConceptDefinition[] = [
   { id: "data-scientist", kind: "role", terms: ["data scientist", "data science"] },
   { id: "data-engineer", kind: "role", terms: ["data engineer", "data mühəndis"] },
 
-  // ── Roles: business & office ─────────────────────────────────────────────
+  // Roles: business & office
   {
     id: "manager",
     kind: "role",
@@ -223,7 +223,7 @@ export const CONCEPTS: readonly ConceptDefinition[] = [
     terms: ["jurnalist", "journalist", "reporter", "журналист", "müxbir"],
   },
 
-  // ── Roles: medical ───────────────────────────────────────────────────────
+  // Roles: medical
   {
     id: "doctor",
     kind: "role",
@@ -252,7 +252,7 @@ export const CONCEPTS: readonly ConceptDefinition[] = [
   { id: "speech-therapist", kind: "role", terms: ["loqoped", "speech therapist", "логопед"] },
   { id: "veterinarian", kind: "role", terms: ["baytar", "veterinarian", "ветеринар"] },
 
-  // ── Roles: service, trade, logistics ─────────────────────────────────────
+  // Roles: service, trade, logistics
   { id: "driver", kind: "role", terms: ["sürücü", "driver", "şofer", "водитель"] },
   { id: "courier", kind: "role", terms: ["kuryer", "courier", "курьер", "çatdırılma"] },
   {
@@ -309,7 +309,7 @@ export const CONCEPTS: readonly ConceptDefinition[] = [
   },
   { id: "guard-babysitter", kind: "role", terms: ["dayəlik"] },
 
-  // ── Domains: school subjects (the classic false-positive source) ─────────
+  // Domains: school subjects (the classic false-positive source)
   { id: "music", kind: "domain", terms: ["musiqi", "music", "музыка", "musiqiçi", "musician"] },
   { id: "piano", kind: "domain", terms: ["piano", "fortepiano", "фортепиано"], implies: ["music"] },
   { id: "guitar", kind: "domain", terms: ["gitara", "guitar", "гитара"], implies: ["music"] },
@@ -366,7 +366,7 @@ export const CONCEPTS: readonly ConceptDefinition[] = [
     terms: ["məktəbəqədər", "bağça", "kindergarten", "preschool", "детский сад"],
   },
 
-  // ── Domains: languages ───────────────────────────────────────────────────
+  // Domains: languages
   { id: "english", kind: "domain", terms: ["ingilis", "ingilis dil", "english", "английский"] },
   {
     id: "russian-language",
@@ -386,7 +386,7 @@ export const CONCEPTS: readonly ConceptDefinition[] = [
   { id: "spanish-language", kind: "domain", terms: ["ispan dil", "ispan", "spanish"] },
   { id: "chinese-language", kind: "domain", terms: ["çin dil", "chinese"] },
 
-  // ── Domains: business fields ─────────────────────────────────────────────
+  // Domains: business fields
   { id: "sales", kind: "domain", terms: ["satış", "sales", "продажи", "satis"] },
   { id: "marketing", kind: "domain", terms: ["marketinq", "marketing", "маркетинг"] },
   {
@@ -483,7 +483,7 @@ export const CONCEPTS: readonly ConceptDefinition[] = [
     terms: ["it", "information technology", "informasiya texnologiya", "ит"],
   },
 
-  // ── Technology qualifiers ────────────────────────────────────────────────
+  // Technology qualifiers
   {
     id: "backend",
     kind: "tech",

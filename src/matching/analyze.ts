@@ -1,31 +1,32 @@
 import { CONCEPTS, SOFT_TERMS, type ConceptDefinition } from "./lexicon";
-import { normalize, tokenize } from "./normalize";
+import { tokenize } from "./normalize";
 
 /** Shortest lexicon entry that may stand in for a longer, suffixed word. */
 const MIN_ROOT_LENGTH = 4;
 /** How many suffix characters a single word may carry on top of a lexicon root. */
 const MAX_SUFFIX_LENGTH = 6;
 
+/** One thing a search demands of a title: a concept, or a word the lexicon does not know. */
+export type Requirement = { kind: "concept"; id: string } | { kind: "word"; token: string };
+
 export interface Analysis {
   /** Every concept the text carries, including the ones it implies. */
   concepts: Set<string>;
-  /**
-   * What a search for this text demands: concept ids (`c:<id>`) plus the words
-   * the lexicon does not know (`w:<token>`). Soft words never land here.
-   */
-  requirements: string[];
-  /** All normalized tokens, used to satisfy unknown-word requirements. */
+  /** What a search for this text demands. Soft words never land here. */
+  requirements: Requirement[];
+  /** All normalized tokens, used to satisfy word requirements. */
   tokens: string[];
-}
-
-interface IndexEntry {
-  conceptIds: string[];
-  soft: boolean;
 }
 
 interface Phrase {
   tokens: string[];
-  entry: IndexEntry;
+  conceptIds: string[];
+}
+
+/** The phrase that starts at a token: its concepts and how many tokens it ate. */
+interface PhraseMatch {
+  conceptIds: string[];
+  length: number;
 }
 
 const conceptsById = new Map<string, ConceptDefinition>(
@@ -36,24 +37,25 @@ const { wordIndex, phraseIndex } = buildIndexes();
 export function analyze(text: string): Analysis {
   const tokens = tokenize(text);
   const concepts = new Set<string>();
-  const requirements = new Set<string>();
+  const requiredConcepts = new Set<string>();
+  const requiredWords = new Set<string>();
   let index = 0;
 
   while (index < tokens.length) {
     const phrase = matchPhrase(tokens, index);
 
     if (phrase !== undefined) {
-      addEntry(concepts, requirements, phrase.entry);
+      requireConcepts(concepts, requiredConcepts, phrase.conceptIds);
       index += phrase.length;
       continue;
     }
 
-    const entry = lookupWord(tokens[index]);
+    const conceptIds = lookupWord(tokens[index]);
 
-    if (entry !== undefined) {
-      addEntry(concepts, requirements, entry);
+    if (conceptIds !== undefined) {
+      requireConcepts(concepts, requiredConcepts, conceptIds);
     } else if (isMeaningfulUnknown(tokens[index])) {
-      requirements.add(`w:${tokens[index]}`);
+      requiredWords.add(tokens[index]);
     }
 
     index += 1;
@@ -61,7 +63,7 @@ export function analyze(text: string): Analysis {
 
   return {
     concepts,
-    requirements: [...(requirements.size > 0 ? requirements : fallbackRequirements(tokens))],
+    requirements: buildRequirements(requiredConcepts, requiredWords, tokens),
     tokens,
   };
 }
@@ -88,16 +90,27 @@ function covers(root: string, word: string): boolean {
   );
 }
 
-function fallbackRequirements(tokens: readonly string[]): string[] {
-  // Everything the user typed was a soft word ("mütəxəssis", "vakansiya"...).
-  // Rather than matching the whole board, fall back to the literal words.
-  return tokens.filter(isMeaningfulUnknown).map((token) => `w:${token}`);
+function buildRequirements(
+  conceptIds: ReadonlySet<string>,
+  words: ReadonlySet<string>,
+  tokens: readonly string[],
+): Requirement[] {
+  if (conceptIds.size === 0 && words.size === 0) {
+    // Everything the user typed was a soft word ("mütəxəssis", "vakansiya"...).
+    // Rather than matching the whole board, fall back to the literal words.
+    return tokens.filter(isMeaningfulUnknown).map((token) => ({ kind: "word", token }));
+  }
+
+  return [
+    ...[...conceptIds].map((id): Requirement => ({ kind: "concept", id })),
+    ...[...words].map((token): Requirement => ({ kind: "word", token })),
+  ];
 }
 
-function addEntry(concepts: Set<string>, requirements: Set<string>, entry: IndexEntry): void {
-  for (const id of entry.conceptIds) {
+function requireConcepts(concepts: Set<string>, required: Set<string>, conceptIds: string[]): void {
+  for (const id of conceptIds) {
     addConceptWithImplications(concepts, id);
-    requirements.add(`c:${id}`);
+    required.add(id);
   }
 }
 
@@ -113,11 +126,8 @@ function addConceptWithImplications(concepts: Set<string>, id: string): void {
   }
 }
 
-function matchPhrase(
-  tokens: readonly string[],
-  index: number,
-): { entry: IndexEntry; length: number } | undefined {
-  let best: { entry: IndexEntry; length: number } | undefined;
+function matchPhrase(tokens: readonly string[], index: number): PhraseMatch | undefined {
+  let best: PhraseMatch | undefined;
 
   for (const phrase of phraseCandidates(tokens[index])) {
     if (index + phrase.tokens.length > tokens.length) {
@@ -133,7 +143,7 @@ function matchPhrase(
     );
 
     if (fits) {
-      best = { entry: phrase.entry, length: phrase.tokens.length };
+      best = { conceptIds: phrase.conceptIds, length: phrase.tokens.length };
     }
   }
 
@@ -154,12 +164,12 @@ function phraseCandidates(token: string): Phrase[] {
   return candidates;
 }
 
-function lookupWord(token: string): IndexEntry | undefined {
+function lookupWord(token: string): string[] | undefined {
   for (const key of rootKeys(token)) {
-    const entry = wordIndex.get(key);
+    const conceptIds = wordIndex.get(key);
 
-    if (entry !== undefined) {
-      return entry;
+    if (conceptIds !== undefined) {
+      return conceptIds;
     }
   }
 
@@ -181,15 +191,19 @@ function isMeaningfulUnknown(token: string): boolean {
   return token.length >= 2 && !/^\d+$/.test(token);
 }
 
+/**
+ * Concepts per known term, by word and by first token of a phrase. A term with
+ * no concepts is a soft term: known, so never an unknown word, but never required.
+ */
 function buildIndexes(): {
-  wordIndex: Map<string, IndexEntry>;
+  wordIndex: Map<string, string[]>;
   phraseIndex: Map<string, Phrase[]>;
 } {
-  const wordIndex = new Map<string, IndexEntry>();
+  const wordIndex = new Map<string, string[]>();
   const phraseIndex = new Map<string, Phrase[]>();
 
-  const add = (term: string, conceptId: string | undefined): void => {
-    const tokens = tokenize(normalize(term));
+  const indexTerm = (term: string, conceptId: string | undefined): void => {
+    const tokens = tokenize(term);
 
     if (tokens.length === 0) {
       return;
@@ -205,32 +219,22 @@ function buildIndexes(): {
 
   for (const concept of CONCEPTS) {
     for (const term of concept.terms) {
-      add(term, concept.id);
+      indexTerm(term, concept.id);
     }
   }
 
   for (const term of SOFT_TERMS) {
-    add(term, undefined);
+    indexTerm(term, undefined);
   }
 
   return { wordIndex, phraseIndex };
 }
 
-function addWord(index: Map<string, IndexEntry>, key: string, conceptId: string | undefined): void {
-  const existing = index.get(key);
+function addWord(index: Map<string, string[]>, key: string, conceptId: string | undefined): void {
+  const conceptIds = index.get(key) ?? [];
 
-  if (existing === undefined) {
-    index.set(key, {
-      conceptIds: conceptId === undefined ? [] : [conceptId],
-      soft: conceptId === undefined,
-    });
-    return;
-  }
-
-  if (conceptId !== undefined && !existing.conceptIds.includes(conceptId)) {
-    existing.conceptIds.push(conceptId);
-    existing.soft = false;
-  }
+  addConceptId(conceptIds, conceptId);
+  index.set(key, conceptIds);
 }
 
 function addPhrase(
@@ -239,20 +243,21 @@ function addPhrase(
   conceptId: string | undefined,
 ): void {
   const bucket = index.get(tokens[0]) ?? [];
-  const existing = bucket.find((phrase) => phrase.tokens.join(" ") === tokens.join(" "));
+  const key = tokens.join(" ");
+  let phrase = bucket.find((candidate) => candidate.tokens.join(" ") === key);
 
-  if (existing === undefined) {
-    bucket.push({
-      tokens,
-      entry: {
-        conceptIds: conceptId === undefined ? [] : [conceptId],
-        soft: conceptId === undefined,
-      },
-    });
-  } else if (conceptId !== undefined && !existing.entry.conceptIds.includes(conceptId)) {
-    existing.entry.conceptIds.push(conceptId);
-    existing.entry.soft = false;
+  if (phrase === undefined) {
+    phrase = { tokens, conceptIds: [] };
+    bucket.push(phrase);
   }
 
+  addConceptId(phrase.conceptIds, conceptId);
   index.set(tokens[0], bucket);
+}
+
+/** A soft term passes `undefined`: it is indexed, but it carries no concept. */
+function addConceptId(conceptIds: string[], conceptId: string | undefined): void {
+  if (conceptId !== undefined && !conceptIds.includes(conceptId)) {
+    conceptIds.push(conceptId);
+  }
 }

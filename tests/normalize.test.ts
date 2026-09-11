@@ -12,6 +12,14 @@ describe("normalize", () => {
   it("trims and collapses punctuation and whitespace", () => {
     expect(normalize("  Backend / Full-stack   Developer!! ")).toBe("backend full stack developer");
   });
+
+  it("keeps digits and letters of other alphabets", () => {
+    expect(normalize("1C Mühasib (Программист)")).toBe("1c muhasib программист");
+  });
+
+  it("returns an empty string when nothing is a letter or a digit", () => {
+    expect(normalize(" -- // ")).toBe("");
+  });
 });
 
 describe("tokenize", () => {
