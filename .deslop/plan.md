@@ -13,8 +13,8 @@ from `master`. Baseline re-measured on the branch: check **pass** · 86/86 tests
 | # | Slice | Files | Lines | CC max | Churn | Entry points | Tests | Status |
 |---|---|---|---|---|---|---|---|---|
 | 1 | `src/scrapers` + `tests/scrapers` | 17 | 891 | 11 | 25 | 7 | direct (7/10 files) | done 6a52c7a · fix 6ad840e · net -71 src · CC max 11 → 10 · tests 14 → 58 |
-| 2 | `src/matching` + `tests/match,normalize` | 6 | 1,355 | 6 | 8 | 0 | direct + strong (56) | done dc4c529 · fix PENDING2 · net +2 prod · CC 6 → 6 · tests 56 → 71 |
-| 3 | `src/pipeline` + `tests/pipeline,format` | 4 | 624 | 8 | 9 | 0 | direct (13) | pending |
+| 2 | `src/matching` + `tests/match,normalize` | 6 | 1,355 | 6 | 8 | 0 | direct + strong (56) | done dc4c529 · fix 5f5b30a · net +2 prod · CC 6 → 6 · tests 56 → 71 |
+| 3 | `src/pipeline` + `tests/pipeline,format` | 4 | 624 | 8 | 9 | 0 | direct (13) | done PENDING3 · net +5 prod · CC 8 → 7 · tests 13 → 21 |
 | 4 | `src/commands` | 7 | 216 | 7 | 12 | 7 | none | pending |
 | 5 | `src/db` | 4 | 411 | 5 | 8 | 1 | none | pending |
 | 6 | `src/utils` + `scripts` + `tests/fingerprint` | 5 | 211 | 7 | 6 | 0 | partial (1/3) | pending |
@@ -167,3 +167,19 @@ when a title has no tokens.
 
 Unbounded work measured, no finding: `analyze` is linear (400k-char title 66ms); worst realistic
 pipeline shape (50 users x 20 fields x 2000 candidates) is 107ms.
+
+### Slice 3 — found, not changed (from the worker)
+
+- `tests/pipeline.test.ts:11` — `vi.mock("../src/scrapers")` mocks an own module instead of
+  injecting the seam. Fixing it means `runPipeline`/`runManualSearch` taking the scraper as a
+  parameter, changing signatures used by `src/index.ts` and `src/commands/axtar.ts`. Proposal.
+- `run.ts:27` — `PipelineResult.truncated` is only ever true on the manual path; the hourly run
+  always reports `false`. Separating the result types ripples into `axtar.ts:53`. Proposal.
+- `run.ts:132` — `deliver` serves two jobs: broadcast to every user, and reply to exactly one
+  (`/axtar` passes a single-user list). `messagesSent` and `truncated` mean different things in
+  each. Proposal.
+- `run.ts:218` — the pipeline hand-rolls the Telegram `sendMessage` call while the rest of the bot
+  uses grammY. Endpoint, HTML parse mode and retry rule are encoded twice. The `scheduled` handler
+  has no bot instance, which explains it. Out of scope here; candidate for slice 7.
+- `runPipeline({ pruneOld: true })` (the 3am branch) has no test: the fake D1 could only observe it
+  by matching SQL text, which would couple the test to the statement. Left untested deliberately.

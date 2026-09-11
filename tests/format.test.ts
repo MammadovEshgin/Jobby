@@ -26,9 +26,40 @@ describe("formatVacancyMessages", () => {
     });
 
     expect(message).toContain("<b>Uyğun vakansiyalar</b> (2)");
-    expect(message).toContain("Acme &lt;MMC&gt;");
+    expect(message).toContain("🏢 Acme &lt;MMC&gt; · 📍 Bakı");
     expect(message).toContain('<a href="https://example.com/vacancy/1">Elana bax</a>');
     expect(message).toContain("Java Developer");
+  });
+
+  it("stamps the header with Baku local time", () => {
+    const [message] = formatVacancyMessages({
+      vacancies: [vacancy],
+      date: new Date("2026-05-19T10:00:00Z"),
+    });
+
+    expect(message).toContain("19.05.2026");
+    expect(message).toContain("14:00");
+  });
+
+  it("escapes HTML in the vacancy link", () => {
+    const [message] = formatVacancyMessages({
+      vacancies: [{ ...vacancy, url: 'https://example.com/v?q=a&b="x"' }],
+    });
+
+    expect(message).toContain(
+      '<a href="https://example.com/v?q=a&amp;b=&quot;x&quot;">Elana bax</a>',
+    );
+  });
+
+  it("truncates an over-long title and company", () => {
+    const [message] = formatVacancyMessages({
+      vacancies: [{ ...vacancy, title: "a".repeat(200), company: "b".repeat(200) }],
+    });
+
+    expect(message).toContain(`${"a".repeat(119)}…`);
+    expect(message).not.toContain("a".repeat(120));
+    expect(message).toContain(`${"b".repeat(89)}…`);
+    expect(message).not.toContain("b".repeat(90));
   });
 
   it("shows how many matched when the list was capped", () => {

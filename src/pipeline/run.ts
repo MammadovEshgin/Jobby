@@ -19,12 +19,12 @@ export const MANUAL_SEARCH_LIMIT = 60;
 /** How long a vacancy counts as open after the last time a source listed it. */
 const SNAPSHOT_MAX_AGE_SECONDS = 7 * 24 * 60 * 60;
 
-export interface PipelineEnv {
+interface PipelineEnv {
   DB: D1Database;
   BOT_TOKEN: string;
 }
 
-export interface PipelineResult {
+interface PipelineResult {
   scraped: number;
   deduped: number;
   usersChecked: number;
@@ -55,19 +55,19 @@ export async function runPipeline(
     await pruneSnapshotOlderThan(env.DB, 14);
   }
 
-  const scraped = await fetchAllVacancies();
-  const candidates = await toCandidates(scraped);
+  const fetched = await fetchAllVacancies();
+  const candidates = await toCandidates(fetched);
 
-  await saveSnapshot(
-    env.DB,
-    candidates.map(({ vacancy, fingerprint: key }) => ({ vacancy, fingerprint: key })),
-  );
+  await saveSnapshot(env.DB, candidates);
 
   const users = await listActiveUsersWithFields(env.DB);
-  const delivered = await deliver(env, candidates, users, { includeAlreadySent: false });
+  const delivered = await deliver(env, candidates, users, {
+    includeAlreadySent: false,
+    limit: Number.POSITIVE_INFINITY,
+  });
 
   return {
-    scraped: scraped.length,
+    scraped: fetched.length,
     deduped: candidates.length,
     usersChecked: users.length,
     ...delivered,
@@ -75,8 +75,9 @@ export async function runPipeline(
 }
 
 /**
- * `/axtar`: answer from the last scrape so the search finishes in a second or
- * two, and return every open match — including ones already delivered.
+ * `/axtar`: answers from the last scrape so the search finishes in a second or
+ * two. Unlike the hourly run it also returns matches the user already received,
+ * at most `MANUAL_SEARCH_LIMIT` of them.
  */
 export async function runManualSearch(
   env: PipelineEnv,
@@ -92,15 +93,19 @@ export async function runManualSearch(
     const live = await fetchAllVacancies();
     scraped = live.length;
     candidates = await toCandidates(live);
-    await saveSnapshot(
-      env.DB,
-      candidates.map(({ vacancy, fingerprint: key }) => ({ vacancy, fingerprint: key })),
-    );
+    await saveSnapshot(env.DB, candidates);
   } else {
-    candidates = stored.map((item) => ({ ...item, title: compile(item.vacancy.title) }));
+    candidates = stored.map(({ vacancy, fingerprint: key }) => ({
+      vacancy,
+      fingerprint: key,
+      title: compile(vacancy.title),
+    }));
   }
 
-  const delivered = await deliver(env, candidates, users, { includeAlreadySent: true });
+  const delivered = await deliver(env, candidates, users, {
+    includeAlreadySent: true,
+    limit: MANUAL_SEARCH_LIMIT,
+  });
 
   return { scraped, deduped: candidates.length, usersChecked: users.length, ...delivered };
 }
@@ -128,7 +133,7 @@ async function deliver(
   env: PipelineEnv,
   candidates: readonly Candidate[],
   users: readonly ActiveUserWithFields[],
-  options: { includeAlreadySent: boolean },
+  options: { includeAlreadySent: boolean; limit: number },
 ): Promise<Pick<PipelineResult, "messagesSent" | "vacanciesSent" | "truncated">> {
   let messagesSent = 0;
   let vacanciesSent = 0;
@@ -139,17 +144,17 @@ async function deliver(
     const matched = matchForUser(candidates, user, sent);
     const selected = options.includeAlreadySent
       ? matched
-      : matched.filter((item) => !item.alreadySent);
+      : matched.filter((match) => !match.alreadySent);
 
     if (selected.length === 0) {
       continue;
     }
 
-    const visible = options.includeAlreadySent ? selected.slice(0, MANUAL_SEARCH_LIMIT) : selected;
+    const visible = selected.slice(0, options.limit);
     truncated = truncated || visible.length < selected.length;
 
     const messages = formatVacancyMessages({
-      vacancies: visible.map((item) => item.vacancy),
+      vacancies: visible.map((match) => match.vacancy),
       total: selected.length,
     });
 
@@ -167,11 +172,11 @@ async function deliver(
     await markManySent(
       env.DB,
       visible
-        .filter((item) => !item.alreadySent)
-        .map((item) => ({
-          fingerprint: item.fingerprint,
+        .filter((match) => !match.alreadySent)
+        .map((match) => ({
+          fingerprint: match.fingerprint,
           telegramId: user.telegramId,
-          source: item.vacancy.source,
+          source: match.vacancy.source,
         })),
     );
     vacanciesSent += visible.length;

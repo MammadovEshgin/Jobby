@@ -106,6 +106,11 @@ function fakeDb(fields: string[]): D1Database {
   } as unknown as D1Database;
 }
 
+/** Telegram's 429 body; `retry_after: 0` keeps the retry wait out of the test's runtime. */
+function rateLimited(): Response {
+  return new Response(JSON.stringify({ parameters: { retry_after: 0 } }), { status: 429 });
+}
+
 function sentMessages(): string[] {
   return vi.mocked(globalThis.fetch).mock.calls.map((call) => {
     const body = JSON.parse(String((call[1] as RequestInit).body)) as { text: string };
@@ -143,6 +148,22 @@ describe("runPipeline", () => {
     expect(message).not.toContain("Backend Developer");
   });
 
+  it("puts the tightest match first in the message", async () => {
+    vacancies.current = [
+      vacancy("Musiqi müəllimi Bakı filialı", "Beta"),
+      vacancy("Musiqi müəllimi"),
+    ];
+
+    await runPipeline({ DB: fakeDb(["musiqi muellimi"]), BOT_TOKEN: "token" });
+    const [message = ""] = sentMessages();
+
+    expect(message).toContain("<b>Musiqi müəllimi</b>");
+    expect(message).toContain("<b>Musiqi müəllimi Bakı filialı</b>");
+    expect(message.indexOf("<b>Musiqi müəllimi</b>")).toBeLessThan(
+      message.indexOf("<b>Musiqi müəllimi Bakı filialı</b>"),
+    );
+  });
+
   it("sends nothing when no vacancy matches", async () => {
     vacancies.current = [vacancy("Fizika müəllimi"), vacancy("Ofisiant")];
 
@@ -174,6 +195,61 @@ describe("runPipeline", () => {
 
     expect(first.vacanciesSent).toBe(1);
     expect(second.vacanciesSent).toBe(0);
+  });
+
+  it("sends a vacancy once when two sources list it", async () => {
+    vacancies.current = [
+      vacancy("Musiqi müəllimi"),
+      { ...vacancy("Musiqi müəllimi"), source: "other", url: "https://other.example/1" },
+    ];
+
+    const result = await runPipeline({ DB: fakeDb(["musiqi muellimi"]), BOT_TOKEN: "token" });
+
+    expect(result.scraped).toBe(2);
+    expect(result.deduped).toBe(1);
+    expect(result.vacanciesSent).toBe(1);
+  });
+
+  it("retries a rate-limited send and delivers on the next attempt", async () => {
+    vacancies.current = [vacancy("Musiqi müəllimi")];
+    vi.mocked(globalThis.fetch).mockResolvedValueOnce(rateLimited());
+
+    const result = await runPipeline({ DB: fakeDb(["musiqi muellimi"]), BOT_TOKEN: "token" });
+
+    expect(globalThis.fetch).toHaveBeenCalledTimes(2);
+    expect(result.vacanciesSent).toBe(1);
+  });
+
+  it("caps the wait between rate-limited attempts at five seconds", async () => {
+    vacancies.current = [vacancy("Musiqi müəllimi")];
+    vi.mocked(globalThis.fetch).mockResolvedValueOnce(
+      new Response(JSON.stringify({ parameters: { retry_after: 600 } }), { status: 429 }),
+    );
+
+    const waits: number[] = [];
+    const schedule = globalThis.setTimeout;
+    vi.stubGlobal("setTimeout", (handler: () => void, ms: number) => {
+      waits.push(ms);
+      return schedule(handler, 0);
+    });
+
+    const result = await runPipeline({ DB: fakeDb(["musiqi muellimi"]), BOT_TOKEN: "token" });
+
+    expect(waits).toEqual([5000]);
+    expect(result.vacanciesSent).toBe(1);
+  });
+
+  it("gives up on a chat that stays rate limited", async () => {
+    vacancies.current = [vacancy("Musiqi müəllimi")];
+    vi.mocked(globalThis.fetch)
+      .mockResolvedValueOnce(rateLimited())
+      .mockResolvedValueOnce(rateLimited())
+      .mockResolvedValueOnce(rateLimited());
+
+    const result = await runPipeline({ DB: fakeDb(["musiqi muellimi"]), BOT_TOKEN: "token" });
+
+    expect(globalThis.fetch).toHaveBeenCalledTimes(3);
+    expect(result.vacanciesSent).toBe(0);
   });
 
   it("keeps delivering to other users when one chat rejects the message", async () => {

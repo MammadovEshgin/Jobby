@@ -2,7 +2,7 @@ import type { RawVacancy } from "../scrapers/types";
 
 const TELEGRAM_LIMIT = 4096;
 
-export interface VacancyBatch {
+interface VacancyBatch {
   vacancies: RawVacancy[];
   /** How many matched in total; larger than `vacancies.length` when capped. */
   total?: number;
