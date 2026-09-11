@@ -1,7 +1,7 @@
 {
-  "name": "vakansiya-bot",
+  "name": "jobby",
   "version": "0.1.0",
-  "description": "Telegram bot that aggregates Azerbaijani job vacancies hourly and notifies users based on their fields.",
+  "description": "Jobby - Telegram bot that aggregates Azerbaijani job vacancies hourly and notifies users about the positions they follow.",
   "private": true,
   "type": "module",
   "scripts": {

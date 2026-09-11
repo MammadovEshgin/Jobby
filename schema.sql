@@ -1,4 +1,4 @@
--- D1 (SQLite) schema for vakansiya-bot.
+-- D1 (SQLite) schema for Jobby.
 -- Apply locally:  npm run db:apply:local
 -- Apply to prod: npm run db:apply:remote
 

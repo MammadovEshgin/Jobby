@@ -13,7 +13,7 @@ export interface Env {
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     if (request.method !== "POST") {
-      return new Response("vakansiya-bot is alive", { status: 200 });
+      return new Response("jobby is alive", { status: 200 });
     }
 
     const bot = createBot({
