@@ -1,8 +1,18 @@
-# Jobby
+<p align="center">
+  <img src="assets/jobby.png" alt="Jobby" width="170" />
+</p>
 
-A Telegram bot that sweeps seven Azerbaijani job boards every hour and sends each user only the vacancies that match the positions they follow. Built on Cloudflare Workers + D1, with a bilingual concept matcher that knows `music teacher` and `Musiqi müəllimi` are the same job — and that `Fizika müəllimi` is not.
+<h1 align="center">Jobby</h1>
 
-<p>
+<p align="center">
+  A Telegram bot that sweeps seven Azerbaijani job boards every hour and sends each user only the
+  vacancies that match the positions they follow.<br />
+  Built on Cloudflare Workers + D1, with a bilingual concept matcher that knows
+  <code>music teacher</code> and <code>Musiqi m&uuml;&#601;llimi</code> are the same job &mdash;
+  and that <code>Fizika m&uuml;&#601;llimi</code> is not.
+</p>
+
+<p align="center">
   <img alt="Cloudflare Workers" src="https://img.shields.io/badge/Cloudflare-Workers-F38020?logo=cloudflare" />
   <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript" />
   <img alt="grammY" src="https://img.shields.io/badge/grammY-1.30-26A5E4?logo=telegram" />
@@ -101,6 +111,7 @@ tests/                Vitest suites (matching, pipeline, scrapers, formatting)
 tests/fixtures/       Saved board responses, so tests never hit the network
 schema.sql            D1 schema (users, user_fields, sent_vacancies, vacancy_snapshot)
 scripts/              set-webhook
+assets/               Mascot artwork
 ```
 
 ## Matching Engine
