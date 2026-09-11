@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { CONCEPTS } from "../src/matching/lexicon";
 import { compile, compileAll, matchCompiled, matchTitle } from "../src/matching/match";
 
 function matches(title: string, field: string): boolean {
@@ -265,5 +266,70 @@ describe("empty input", () => {
 
   it("never matches an empty field", () => {
     expect(matches("Musiqi müəllimi", "   ")).toBe(false);
+  });
+});
+
+describe("symbol-bearing technology names", () => {
+  // normalize() used to strip the "#", leaving the bare letter "c" as a term of the dotnet
+  // concept, so every title carrying a stray C matched a user following C# or .NET.
+  it.each([
+    ["Sürücü (B, C kateqoriyalı)", "C#"],
+    ["Hepatit C üzrə həkim", "C#"],
+    ["C vitamini üzrə satış təmsilçisi", "C#"],
+    ["Sürücü (B, C kateqoriyalı)", "dotnet"],
+    ["Sürücü (B, C kateqoriyalı)", ".NET"],
+  ])("does not offer %j to someone following %j", (title, field) => {
+    expect(matchTitle(title, field).matched).toBe(false);
+  });
+
+  it.each([
+    ["Backend developer (C#, .NET)", "C#"],
+    [".NET Developer", "C#"],
+    ["C# proqramçı", "dotnet"],
+    ["ASP.NET developer", "dotnet"],
+  ])("still offers %j to someone following %j", (title, field) => {
+    expect(matchTitle(title, field).matched).toBe(true);
+  });
+
+  it("keeps C++ apart from C#", () => {
+    expect(matchTitle("C++ developer", "C#").matched).toBe(false);
+    expect(matchTitle("C# developer", "C++").matched).toBe(false);
+  });
+});
+
+describe("technology terms never reach an unrelated vacancy", () => {
+  // Offering a driver job to someone following C# costs the bot the user's trust, so the whole
+  // technology vocabulary is swept rather than the one term that was found broken.
+  const NON_TECH = [
+    "Sürücü (B, C kateqoriyalı)",
+    "Hepatit C üzrə həkim",
+    "C vitamini üzrə satış təmsilçisi",
+    "Musiqi müəllimi",
+    "Aşpaz köməkçisi",
+    "Mühafizəçi",
+    "Satıcı-kassir",
+    "Anbardar",
+    "Bərbər",
+    "Xadimə",
+    "Tikişçi",
+    "Fəhlə",
+    "Ofisiant",
+    "Bağban",
+    "Kuryer (piyada)",
+    "Stomatoloq",
+    "Hüquqşünas",
+    "Mühasib köməkçisi",
+    "Fizika müəllimi",
+    "Gözəllik salonuna usta",
+  ];
+
+  const techTerms = CONCEPTS.filter((concept) => concept.kind === "tech").flatMap((concept) =>
+    concept.terms.map((term) => [concept.id, term] as const),
+  );
+
+  it.each(NON_TECH)("offers no technology vacancy to %j", (title) => {
+    const offered = techTerms.filter(([, term]) => matchTitle(title, term).matched);
+
+    expect(offered).toEqual([]);
   });
 });
