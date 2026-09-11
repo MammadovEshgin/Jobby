@@ -3,19 +3,21 @@ import { parse } from "node-html-parser";
 import type { RawVacancy, Scraper } from "./types";
 import { dedupeVacanciesByUrl } from "./dedupe";
 import { fetchText } from "../utils/fetch";
+import { logInfo } from "../utils/log";
 
 const BASE_URL = "https://www.hellojob.az";
 const LISTING_URLS = [
   `${BASE_URL}/vakansiyalar`,
   `${BASE_URL}/vakansiyalar?page=2`,
   `${BASE_URL}/vakansiyalar?page=3`,
+  `${BASE_URL}/vakansiyalar?page=4`,
 ];
 const USER_AGENT = "Mozilla/5.0 (compatible; VakansiyaBot/0.1; +https://www.hellojob.az)";
 
 export const helloJobAzScraper: Scraper = {
   name: "hellojob.az",
   async fetch(): Promise<RawVacancy[]> {
-    const pages = await Promise.all(
+    const results = await Promise.allSettled(
       LISTING_URLS.map((url) =>
         fetchText(url, {
           timeoutMs: 10_000,
@@ -26,6 +28,24 @@ export const helloJobAzScraper: Scraper = {
         }),
       ),
     );
+    const pages: string[] = [];
+
+    for (const [index, result] of results.entries()) {
+      if (result.status === "fulfilled") {
+        pages.push(result.value);
+        continue;
+      }
+
+      logInfo("scraper_page_skipped", {
+        site: "hellojob.az",
+        url: LISTING_URLS[index],
+        reason: result.reason instanceof Error ? result.reason.message : "Unknown error",
+      });
+    }
+
+    if (pages.length === 0) {
+      throw results.find((result) => result.status === "rejected")?.reason ?? new Error("No hellojob.az pages fetched.");
+    }
 
     return dedupeVacanciesByUrl(pages.flatMap((html) => parseHelloJobAzVacancies(html)));
   },

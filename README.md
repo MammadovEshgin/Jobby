@@ -2,6 +2,8 @@
 
 Telegram bot that aggregates Azerbaijani job vacancies hourly and notifies users based on their subscribed fields. It runs on Cloudflare Workers with TypeScript, grammY, D1, Cron Triggers, and static HTML scraping.
 
+Matching is concept-based and bilingual: a search for `music teacher` finds `Musiqi müəllimi` but never `Fizika müəllimi`.
+
 ## Local Setup
 
 ```sh
@@ -38,21 +40,38 @@ npm test
 npm run dev
 ```
 
-Working scrapers:
+Working sources (~650 vacancies per run):
 
-- `boss.az` (first 3 listing pages)
-- `hellojob.az` (first 3 listing pages)
+- `hellojob.az` (4 listing pages)
 - `jobsearch.az`
-- `smartjob.az`
-- `jobs.glorri.az`
+- `smartjob.az` (`/vacancies` listing)
+- `jobs.glorri.az` (public job API, 6 pages)
+- `vakansiya.biz` (5 listing pages)
 
-Skipped sources are documented in `progress.md`.
+`boss.az` was removed: it now renders its listing client-side from a private API,
+so neither `/vacancies` nor `/vacancies/new` returns job data to a plain fetch.
 
-Search breadth:
+## Matching
 
-- `Dar` (`strict`) only sends exact title matches.
-- `Normal` matches title tokens and synonyms.
-- `Geniş` also searches company, location, and description-like text when a scraper provides it.
+A vacancy is sent only when its title carries **every** idea the saved field
+carries, in any language. The pieces live in `src/matching`:
+
+- `lexicon.ts` — concepts (`teacher`, `music`, `backend`, …), each listing its
+  Azerbaijani, English and Russian spellings, plus the soft words (seniority,
+  employment type, cities, boilerplate) that never decide a match.
+- `analyze.ts` — turns a title or a saved field into the concepts it carries,
+  stripping Azerbaijani suffixes (`müəllimlərinə` → `müəllim`) and reading
+  multi-word terms (`ingilis dili`, `call center`) as single ideas.
+- `match.ts` — requires every concept of the field to be present in the title,
+  and scores tighter titles higher.
+
+The rule is one-directional: a title may add ideas but never drop one.
+
+- `music teacher` → `Musiqi müəllimi`, `Music Teacher`, `Piano müəllimi`
+- `music teacher` ✗ `Fizika müəllimi` (shares `teacher`, has no `music`)
+- `backend developer` → `Java Developer` (`java` implies `backend`)
+- `backend developer` ✗ `Frontend Developer`
+- `müəllim` → every teacher, because no subject was asked for
 
 ## Deploy
 
@@ -73,13 +92,14 @@ In Telegram, open the bot and run:
 
 ```text
 /start
-/ixtisas backend developer
+/ixtisas musiqi müəllimi
 /ixtisaslar
-/genislik
 /axtar
 ```
 
-Expected result: `/axtar` replies that search started, then sends a vacancy batch if new matching jobs are found, or says that no new matching vacancy was found.
+Expected result: `/axtar` replies that the search started, then sends every open vacancy
+that matches (up to 60, tightest match first), or says that nothing matched. The hourly
+cron sends only vacancies that have not been delivered to that user before.
 
 ## Operations
 

@@ -3,10 +3,13 @@ import { describe, expect, it } from "vitest";
 
 import { parseGlorriAzVacancies } from "../../src/scrapers/glorri-az";
 
+async function fixture(): Promise<string> {
+  return await readFile(new URL("../fixtures/glorri-az.json", import.meta.url), "utf8");
+}
+
 describe("parseGlorriAzVacancies", () => {
-  it("parses vacancy entities from the jobs.glorri.az fixture", async () => {
-    const html = await readFile(new URL("../fixtures/glorri-az.html", import.meta.url), "utf8");
-    const vacancies = parseGlorriAzVacancies(html);
+  it("parses jobs from the public API response", async () => {
+    const vacancies = parseGlorriAzVacancies(await fixture());
 
     expect(vacancies.length).toBeGreaterThan(0);
     expect(vacancies[0]).toMatchObject({
@@ -19,10 +22,13 @@ describe("parseGlorriAzVacancies", () => {
   });
 
   it("does not emit duplicate vacancy URLs", async () => {
-    const html = await readFile(new URL("../fixtures/glorri-az.html", import.meta.url), "utf8");
-    const vacancies = parseGlorriAzVacancies(html);
-    const urls = vacancies.map((vacancy) => vacancy.url);
+    const urls = parseGlorriAzVacancies(await fixture()).map((vacancy) => vacancy.url);
 
     expect(new Set(urls).size).toBe(urls.length);
+  });
+
+  it("returns nothing for a malformed response", () => {
+    expect(parseGlorriAzVacancies("not json")).toEqual([]);
+    expect(parseGlorriAzVacancies("{}")).toEqual([]);
   });
 });

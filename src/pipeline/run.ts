@@ -1,10 +1,13 @@
 import { listActiveUsersWithFields, type ActiveUserWithFields } from "../db/users";
-import { markSent, pruneOlderThan, wasSent } from "../db/vacancies";
-import { classify } from "../matching/score";
+import { listSentFingerprints, markManySent, pruneOlderThan } from "../db/vacancies";
+import { compile, compileAll, matchCompiled, type CompiledText } from "../matching/match";
 import { fetchAllVacancies } from "../scrapers";
 import type { RawVacancy } from "../scrapers/types";
 import { dedupeVacanciesByFingerprint, fingerprint } from "../utils/fingerprint";
 import { formatVacancyMessages } from "./format";
+
+/** Upper bound on a single manual search so one reply never runs to dozens of messages. */
+export const MANUAL_SEARCH_LIMIT = 60;
 
 export interface PipelineEnv {
   DB: D1Database;
@@ -14,6 +17,11 @@ export interface PipelineEnv {
 export interface PipelineOptions {
   telegramId?: number;
   pruneOld?: boolean;
+  /**
+   * Manual searches answer with everything that matches right now, including
+   * vacancies already delivered earlier. The hourly run only sends new ones.
+   */
+  includeAlreadySent?: boolean;
 }
 
 export interface PipelineResult {
@@ -22,12 +30,14 @@ export interface PipelineResult {
   usersChecked: number;
   messagesSent: number;
   vacanciesSent: number;
+  truncated: boolean;
 }
 
-interface ClassifiedVacancy {
+interface MatchedVacancy {
   vacancy: RawVacancy;
-  match: "exact" | "related";
+  score: number;
   fingerprint: string;
+  alreadySent: boolean;
 }
 
 export async function runPipeline(env: PipelineEnv, options: PipelineOptions = {}): Promise<PipelineResult> {
@@ -37,35 +47,47 @@ export async function runPipeline(env: PipelineEnv, options: PipelineOptions = {
 
   const scrapedVacancies = await fetchAllVacancies();
   const dedupedVacancies = await dedupeVacanciesByFingerprint(scrapedVacancies);
+  // Titles are analysed once per run and reused for every user.
+  const titles = dedupedVacancies.map((vacancy) => compile(vacancy.title));
   const users = await listActiveUsersWithFields(env.DB, options.telegramId);
+  const manual = options.includeAlreadySent === true;
   let messagesSent = 0;
   let vacanciesSent = 0;
+  let truncated = false;
 
   for (const user of users) {
-    const classified = await classifyForUser(dedupedVacancies, user);
-    const unsent = await filterUnsent(env.DB, user.telegramId, classified);
+    const sent = await listSentFingerprints(env.DB, user.telegramId);
+    const matched = await matchForUser(dedupedVacancies, titles, user, sent);
+    const selected = manual ? matched : matched.filter((item) => !item.alreadySent);
 
-    if (unsent.length === 0) {
+    if (selected.length === 0) {
       continue;
     }
 
-    const exact = unsent.filter((item) => item.match === "exact").map((item) => item.vacancy);
-    const related = unsent.filter((item) => item.match === "related").map((item) => item.vacancy);
-    const messages = formatVacancyMessages({ exact, related });
+    const visible = selected.slice(0, manual ? MANUAL_SEARCH_LIMIT : selected.length);
+    truncated = truncated || visible.length < selected.length;
+
+    const messages = formatVacancyMessages({
+      vacancies: visible.map((item) => item.vacancy),
+      total: selected.length,
+    });
 
     for (const message of messages) {
       await sendTelegramMessage(env.BOT_TOKEN, user.telegramId, message);
       messagesSent += 1;
     }
 
-    for (const item of unsent) {
-      await markSent(env.DB, {
-        fingerprint: item.fingerprint,
-        telegramId: user.telegramId,
-        source: item.vacancy.source,
-      });
-      vacanciesSent += 1;
-    }
+    await markManySent(
+      env.DB,
+      selected
+        .filter((item) => !item.alreadySent)
+        .map((item) => ({
+          fingerprint: item.fingerprint,
+          telegramId: user.telegramId,
+          source: item.vacancy.source,
+        })),
+    );
+    vacanciesSent += visible.length;
   }
 
   return {
@@ -74,48 +96,42 @@ export async function runPipeline(env: PipelineEnv, options: PipelineOptions = {
     usersChecked: users.length,
     messagesSent,
     vacanciesSent,
+    truncated,
   };
 }
 
 export async function runPipelineForUser(env: PipelineEnv, telegramId: number): Promise<PipelineResult> {
-  return await runPipeline(env, { telegramId });
+  return await runPipeline(env, { telegramId, includeAlreadySent: true });
 }
 
-async function classifyForUser(vacancies: readonly RawVacancy[], user: ActiveUserWithFields): Promise<ClassifiedVacancy[]> {
-  const fields = user.fields.map((field) => field.field);
-  const matched: ClassifiedVacancy[] = [];
+async function matchForUser(
+  vacancies: readonly RawVacancy[],
+  titles: readonly CompiledText[],
+  user: ActiveUserWithFields,
+  sent: ReadonlySet<string>,
+): Promise<MatchedVacancy[]> {
+  const fields = compileAll(user.fields.map((field) => field.field));
+  const matched: MatchedVacancy[] = [];
 
-  for (const vacancy of vacancies) {
-    const match = classify(vacancy, fields, { mode: user.searchMode });
+  for (const [index, vacancy] of vacancies.entries()) {
+    const result = matchCompiled(titles[index], fields);
 
-    if (match === "none") {
+    if (!result.matched) {
       continue;
     }
 
+    const key = await fingerprint(vacancy.title, vacancy.company);
+
     matched.push({
       vacancy,
-      match,
-      fingerprint: await fingerprint(vacancy.title, vacancy.company),
+      score: result.score,
+      fingerprint: key,
+      alreadySent: sent.has(key),
     });
   }
 
-  return matched;
-}
-
-async function filterUnsent(
-  db: D1Database,
-  telegramId: number,
-  vacancies: readonly ClassifiedVacancy[],
-): Promise<ClassifiedVacancy[]> {
-  const unsent: ClassifiedVacancy[] = [];
-
-  for (const vacancy of vacancies) {
-    if (!(await wasSent(db, vacancy.fingerprint, telegramId))) {
-      unsent.push(vacancy);
-    }
-  }
-
-  return unsent;
+  // Tightest match first, so the most relevant vacancy heads the message.
+  return matched.sort((left, right) => right.score - left.score || left.vacancy.title.localeCompare(right.vacancy.title));
 }
 
 async function sendTelegramMessage(token: string, chatId: number, text: string): Promise<void> {

@@ -1,17 +1,17 @@
-import { bossAzScraper } from "./boss-az";
 import { glorriAzScraper } from "./glorri-az";
 import { helloJobAzScraper } from "./hellojob-az";
 import { jobSearchAzScraper } from "./jobsearch-az";
 import { smartJobAzScraper } from "./smartjob-az";
+import { vakansiyaBizScraper } from "./vakansiya-biz";
 import type { RawVacancy, Scraper } from "./types";
 import { logError, logInfo } from "../utils/log";
 
 export const scrapers: Scraper[] = [
-  bossAzScraper,
   helloJobAzScraper,
   jobSearchAzScraper,
   smartJobAzScraper,
   glorriAzScraper,
+  vakansiyaBizScraper,
 ];
 
 export async function fetchAllVacancies(): Promise<RawVacancy[]> {

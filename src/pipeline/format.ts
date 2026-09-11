@@ -3,26 +3,30 @@ import type { RawVacancy } from "../scrapers/types";
 const TELEGRAM_LIMIT = 4096;
 
 export interface VacancyBatch {
-  exact: RawVacancy[];
-  related: RawVacancy[];
+  vacancies: RawVacancy[];
+  /** How many matched in total; larger than `vacancies.length` when capped. */
+  total?: number;
   date?: Date;
 }
 
 export function formatVacancyMessages(batch: VacancyBatch): string[] {
-  if (batch.exact.length === 0 && batch.related.length === 0) {
+  if (batch.vacancies.length === 0) {
     return [];
   }
 
-  const header = `🔔 <b>Yeni vakansiyalar</b> · <i>${escapeHtml(formatDate(batch.date ?? new Date()))}</i>`;
-  const blocks = [
-    formatSection("Dəqiq uyğunluqlar", batch.exact),
-    formatSection("Əlaqəli vakansiyalar", batch.related),
-  ].flat();
+  const total = batch.total ?? batch.vacancies.length;
+  const shown = batch.vacancies.length;
+  const count = shown < total ? `${shown}/${total}` : `${total}`;
+  const header = [
+    `🔔 <b>Uyğun vakansiyalar</b> (${count})`,
+    `<i>${escapeHtml(formatDate(batch.date ?? new Date()))}</i>`,
+  ].join(" · ");
 
   const messages: string[] = [];
   let current = header;
 
-  for (const block of blocks) {
+  for (const vacancy of batch.vacancies) {
+    const block = formatVacancy(vacancy);
     const next = `${current}\n\n${block}`;
 
     if (next.length > TELEGRAM_LIMIT) {
@@ -33,19 +37,9 @@ export function formatVacancyMessages(batch: VacancyBatch): string[] {
     }
   }
 
-  if (current.length > 0) {
-    messages.push(current);
-  }
+  messages.push(current);
 
   return messages;
-}
-
-function formatSection(title: string, vacancies: RawVacancy[]): string[] {
-  if (vacancies.length === 0) {
-    return [];
-  }
-
-  return [`━━━ <b>${escapeHtml(title)}</b> (${vacancies.length}) ━━━`, ...vacancies.map(formatVacancy)];
 }
 
 function formatVacancy(vacancy: RawVacancy): string {

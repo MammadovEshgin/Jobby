@@ -1,8 +1,7 @@
 import { Bot, Context, InlineKeyboard } from "grammy/web";
 
-import { removeField, setSearchMode, type SearchMode } from "./db/users";
+import { removeField } from "./db/users";
 import { registerAxtarCommand } from "./commands/axtar";
-import { registerGenislikCommand, searchModeLabel } from "./commands/genislik";
 import { registerIxtisasCommand } from "./commands/ixtisas";
 import { registerIxtisaslarCommand } from "./commands/ixtisaslar";
 import { registerKomekCommand } from "./commands/komek";
@@ -34,7 +33,6 @@ export function createBot(env: BotEnv): VakansiyaBot {
   registerIxtisaslarCommand(bot);
   registerSilCommand(bot);
   registerAxtarCommand(bot);
-  registerGenislikCommand(bot);
   registerKomekCommand(bot);
   registerStopCommand(bot);
 
@@ -50,14 +48,6 @@ export function createBot(env: BotEnv): VakansiyaBot {
     const removed = await removeField(ctx.env.DB, telegramId, field);
     await ctx.answerCallbackQuery({ text: removed ? "İxtisas silindi." : "İxtisas tapılmadı." });
     await ctx.editMessageText(removed ? "İxtisas silindi. Yenilənmiş siyahı üçün /ixtisaslar yazın." : "İxtisas tapılmadı.");
-  });
-
-  bot.callbackQuery(/^search_mode:(strict|normal|broad)$/, async (ctx) => {
-    const mode = (ctx.match[1] ?? "normal") as SearchMode;
-
-    await setSearchMode(ctx.env.DB, ctx.from.id, mode);
-    await ctx.answerCallbackQuery({ text: `Axtarış genişliyi: ${searchModeLabel(mode)}.` });
-    await ctx.editMessageText(`Axtarış genişliyi yeniləndi: ${searchModeLabel(mode)}.`);
   });
 
   bot.on("message", async (ctx) => {

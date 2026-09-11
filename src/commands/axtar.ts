@@ -1,7 +1,7 @@
 import type { BotContext, VakansiyaBot } from "../bot";
 import { checkManualSearchLimit, recordManualSearch } from "../db/manual-search";
 import { listFields } from "../db/users";
-import { runPipelineForUser } from "../pipeline/run";
+import { MANUAL_SEARCH_LIMIT, runPipelineForUser } from "../pipeline/run";
 
 export function registerAxtarCommand(bot: VakansiyaBot): void {
   bot.command("axtar", async (ctx: BotContext) => {
@@ -13,7 +13,7 @@ export function registerAxtarCommand(bot: VakansiyaBot): void {
     const fields = await listFields(ctx.env.DB, ctx.from.id);
 
     if (fields.length === 0) {
-      await ctx.reply("Axtarış üçün əvvəl ixtisas əlavə edin. Məsələn: /ixtisas backend developer");
+      await ctx.reply("Axtarış üçün əvvəl ixtisas əlavə edin. Məsələn: /ixtisas musiqi müəllimi");
       return;
     }
 
@@ -30,7 +30,14 @@ export function registerAxtarCommand(bot: VakansiyaBot): void {
     const result = await runPipelineForUser(ctx.env, ctx.from.id);
 
     if (result.vacanciesSent === 0) {
-      await ctx.reply("Yeni uyğun vakansiya tapılmadı.");
+      await ctx.reply("Uyğun açıq vakansiya tapılmadı. İxtisaslarınızı /ixtisaslar ilə yoxlaya bilərsiniz.");
+      return;
+    }
+
+    if (result.truncated) {
+      await ctx.reply(
+        `Ən uyğun ${MANUAL_SEARCH_LIMIT} vakansiya göndərildi. Nəticəni azaltmaq üçün ixtisası daha dəqiq yazın.`,
+      );
     }
   });
 }

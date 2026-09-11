@@ -1,0 +1,311 @@
+{
+ "entities": [
+  {
+   "title": "Aparıcı Mühasib",
+   "slug": "europark-aparici-muhasib-34924021",
+   "postedDate": "2026-09-07T13:50:48.965Z",
+   "isRemote": false,
+   "jobFunction": "Digər xidmətlər",
+   "careerLevel": "Mütəxəssis",
+   "location": "Bakı, Azərbaycan",
+   "viewCount": 243,
+   "type": "Tam ştat",
+   "isProAd": true,
+   "company": {
+    "slug": "europark",
+    "name": "Europark MMC",
+    "logo": ""
+   }
+  },
+  {
+   "title": "Medikal Tanıtım Nümayəndəsi",
+   "slug": "orzax-medikal-tanitim-numayendesi-35245594",
+   "postedDate": "2026-09-08T07:15:07.974Z",
+   "isRemote": false,
+   "jobFunction": "Digər xidmətlər",
+   "careerLevel": "",
+   "location": "Bakı, Azərbaycan",
+   "viewCount": 173,
+   "type": "Tam ştat",
+   "isProAd": true,
+   "company": {
+    "slug": "orzax",
+    "name": "BioHerbal Baku MMC",
+    "logo": "2502e858-e906-4a44-a967-532db92e81f1.png?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIARYR7CB4J7JPUDPWA%2F20260910%2Feu-central-1%2Fs3%2Faws4_request&X-Amz-Date=20260910T073525Z&X-Amz-Expires=1800&X-Amz-SignedHeaders=host&X-Amz-Signature=aad551897093d56f5214ae17dba4c45d499d2606bfd22a6ff63865cb39a25b52"
+   }
+  },
+  {
+   "title": "CRM sistemlərinin satış təmsilçisi",
+   "slug": "innovasiyasoft-crm-sistemlerinin-satis-temsilcisi-17920343",
+   "postedDate": "2026-09-10T10:28:52.134Z",
+   "isRemote": true,
+   "jobFunction": "Satışlar",
+   "careerLevel": "Mütəxəssis",
+   "location": "Bakı, Azərbaycan",
+   "viewCount": 53,
+   "type": "Tam ştat",
+   "isProAd": true,
+   "company": {
+    "slug": "innovasiyasoft",
+    "name": "Innovasiya Soft MMC",
+    "logo": "1f821013-2234-41b9-9ac8-4bd85a96e867.jpeg"
+   }
+  },
+  {
+   "title": "Marketinq Departament Direktoru",
+   "slug": "matanata-marketinq-departament-direktoru-31771",
+   "postedDate": "2026-09-11T05:52:57.555Z",
+   "isRemote": false,
+   "jobFunction": "Marketinq",
+   "careerLevel": "",
+   "location": "Bakı, Azərbaycan",
+   "viewCount": 663,
+   "type": "Tam ştat",
+   "isProAd": false,
+   "company": {
+    "slug": "matanata",
+    "name": "Mətanət A Şirkətlər Qrupu",
+    "logo": "f048c610-7a44-11ee-ae0c-c5bc90a7ee89.png"
+   }
+  },
+  {
+   "title": "Director of Engineering",
+   "slug": "absheronhotelgroup-9-director-of-engineering-37633896",
+   "postedDate": "2026-09-11T05:46:29.181Z",
+   "isRemote": false,
+   "jobFunction": "Səyahət, mehmanxanalar, istirahət",
+   "careerLevel": "Direktor",
+   "location": "Şamaxı, Azərbaycan",
+   "viewCount": 2,
+   "type": "Tam ştat",
+   "isProAd": false,
+   "company": {
+    "slug": "absheronhotelgroup-9",
+    "name": "Meysari Grand Hotel & Spa",
+    "logo": "7d8ef31c-7c79-4f78-8a3c-3c7eac34cbdc.png"
+   }
+  },
+  {
+   "title": "İT idarəçiliyi üzrə mütəxəssis/aparıcı mütəxəssis",
+   "slug": "idda-it-idareciliyi-uzre-mutexessisaparici-mutexessis-81877915",
+   "postedDate": "2026-09-11T05:45:56.210Z",
+   "isRemote": false,
+   "jobFunction": "İnformasiya Texnologiyaları",
+   "careerLevel": "",
+   "location": "Bakı, Azərbaycan",
+   "viewCount": 2,
+   "type": "Tam ştat",
+   "isProAd": false,
+   "company": {
+    "slug": "idda",
+    "name": "İnnovasiya və Rəqəmsal İnkişaf Agentliyi",
+    "logo": "43cd9470-a069-11ed-a87f-3761f0abf2b7.png"
+   }
+  },
+  {
+   "title": "Biznesin inkişafı və layihələrin idarə olunması üzrə kiçik mütəxəssis",
+   "slug": "bakusteel-biznesin-inkisafi-ve-layihelerin-idare-olunmasi-uzre-kicik-mutexessis-6260",
+   "postedDate": "2026-09-10T20:05:31.326Z",
+   "isRemote": false,
+   "jobFunction": "Biznesin inkişafı",
+   "careerLevel": "",
+   "location": "Bakı, Azərbaycan",
+   "viewCount": 535,
+   "type": "Tam ştat",
+   "isProAd": false,
+   "company": {
+    "slug": "bakusteel",
+    "name": "Baku Steel Company",
+    "logo": "bff4cc70-1bc6-11ee-a2e7-fd538361ea30.png"
+   }
+  },
+  {
+   "title": "Pərakəndə xidmətlər və istehlak kreditləri üzrə Mütəxəssis /Aparıcı Mütəxəssis (Beyləqan)",
+   "slug": "unibank-perakende-xidmetler-ve-istehlak-kreditleri-uzre-mutexessis-aparici-mutexessi-24638997",
+   "postedDate": "2026-09-10T19:57:31.955Z",
+   "isRemote": false,
+   "jobFunction": "Bank xidmətləri",
+   "careerLevel": "Mütəxəssis",
+   "location": "Beyləqan, Azərbaycan",
+   "viewCount": 32,
+   "type": "Tam ştat",
+   "isProAd": false,
+   "company": {
+    "slug": "unibank",
+    "name": "Unibank Kommersiya Bankı",
+    "logo": "28069cc0-e0b0-11eb-ac35-b3a58074ff76.png"
+   }
+  },
+  {
+   "title": "Tibbi nümayəndə",
+   "slug": "azerimed-tibbi-numayende-989923",
+   "postedDate": "2026-09-10T15:33:14.981Z",
+   "isRemote": false,
+   "jobFunction": "Səhiyyə, əczaçılıq",
+   "careerLevel": "",
+   "location": "Bakı, Azərbaycan",
+   "viewCount": 5250,
+   "type": "Tam ştat",
+   "isProAd": false,
+   "company": {
+    "slug": "azerimed",
+    "name": "AzəriMed MMC",
+    "logo": "f9273262-0fb6-4d5b-bcf0-3509e0b4bbe4.jpg"
+   }
+  },
+  {
+   "title": "Elektrik",
+   "slug": "azerimed-elektrik-54930",
+   "postedDate": "2026-09-10T15:32:01.271Z",
+   "isRemote": false,
+   "jobFunction": "Digər xidmətlər",
+   "careerLevel": "",
+   "location": "Bakı, Azərbaycan",
+   "viewCount": 218,
+   "type": "Tam ştat",
+   "isProAd": false,
+   "company": {
+    "slug": "azerimed",
+    "name": "AzəriMed MMC",
+    "logo": "f9273262-0fb6-4d5b-bcf0-3509e0b4bbe4.jpg"
+   }
+  },
+  {
+   "title": "Parfümeriya üzrə satış təmsilçisi",
+   "slug": "azerimed-parfumeriya-uzre-satis-temsilcisi-95327",
+   "postedDate": "2026-09-10T15:31:30.602Z",
+   "isRemote": false,
+   "jobFunction": "Satışlar",
+   "careerLevel": "",
+   "location": "Bakı, Azərbaycan",
+   "viewCount": 6855,
+   "type": "Tam ştat",
+   "isProAd": false,
+   "company": {
+    "slug": "azerimed",
+    "name": "AzəriMed MMC",
+    "logo": "f9273262-0fb6-4d5b-bcf0-3509e0b4bbe4.jpg"
+   }
+  },
+  {
+   "title": "Əczaçı",
+   "slug": "azerimed-eczaci-47002",
+   "postedDate": "2026-09-10T15:31:00.045Z",
+   "isRemote": false,
+   "jobFunction": "Səhiyyə, əczaçılıq",
+   "careerLevel": "",
+   "location": "Bakı, Azərbaycan",
+   "viewCount": 3109,
+   "type": "Tam ştat",
+   "isProAd": false,
+   "company": {
+    "slug": "azerimed",
+    "name": "AzəriMed MMC",
+    "logo": "f9273262-0fb6-4d5b-bcf0-3509e0b4bbe4.jpg"
+   }
+  },
+  {
+   "title": "Plastik ustası",
+   "slug": "azerimed-plastik-ustasi-62394",
+   "postedDate": "2026-09-10T15:30:31.170Z",
+   "isRemote": false,
+   "jobFunction": "Usta, təmir, servis xidməti",
+   "careerLevel": "",
+   "location": "Bakı, Azərbaycan",
+   "viewCount": 1351,
+   "type": "Tam ştat",
+   "isProAd": false,
+   "company": {
+    "slug": "azerimed",
+    "name": "AzəriMed MMC",
+    "logo": "f9273262-0fb6-4d5b-bcf0-3509e0b4bbe4.jpg"
+   }
+  },
+  {
+   "title": "Mebel ustası",
+   "slug": "azerimed-mebel-ustasi-6463",
+   "postedDate": "2026-09-10T15:30:07.707Z",
+   "isRemote": false,
+   "jobFunction": "Usta, təmir, servis xidməti",
+   "careerLevel": "",
+   "location": "Bakı, Azərbaycan",
+   "viewCount": 2382,
+   "type": "Tam ştat",
+   "isProAd": false,
+   "company": {
+    "slug": "azerimed",
+    "name": "AzəriMed MMC",
+    "logo": "f9273262-0fb6-4d5b-bcf0-3509e0b4bbe4.jpg"
+   }
+  },
+  {
+   "title": "Satış meneceri",
+   "slug": "azerimed-satis-meneceri-47720",
+   "postedDate": "2026-09-10T15:29:50.771Z",
+   "isRemote": false,
+   "jobFunction": "Satışlar",
+   "careerLevel": "",
+   "location": "Bakı, Azərbaycan",
+   "viewCount": 3930,
+   "type": "Tam ştat",
+   "isProAd": false,
+   "company": {
+    "slug": "azerimed",
+    "name": "AzəriMed MMC",
+    "logo": "f9273262-0fb6-4d5b-bcf0-3509e0b4bbe4.jpg"
+   }
+  },
+  {
+   "title": "Gömrük işlərinə nəzarət üzrə kiçik mütəxəssis",
+   "slug": "azerimed-gomruk-islerine-nezaret-uzre-kicik-mutexessis-93579",
+   "postedDate": "2026-09-10T15:29:33.500Z",
+   "isRemote": false,
+   "jobFunction": "Digər xidmətlər",
+   "careerLevel": "",
+   "location": "Bakı, Azərbaycan",
+   "viewCount": 1953,
+   "type": "Tam ştat",
+   "isProAd": false,
+   "company": {
+    "slug": "azerimed",
+    "name": "AzəriMed MMC",
+    "logo": "f9273262-0fb6-4d5b-bcf0-3509e0b4bbe4.jpg"
+   }
+  },
+  {
+   "title": "IT Helpdesk Mütəxəssisi(Zaqatala)",
+   "slug": "tabaterra-it-helpdesk-mutexessisizaqatala-54117271",
+   "postedDate": "2026-09-10T15:01:59.937Z",
+   "isRemote": false,
+   "jobFunction": "İnformasiya Texnologiyaları",
+   "careerLevel": "",
+   "location": "Zaqatala, Azərbaycan",
+   "viewCount": 42,
+   "type": "Tam ştat",
+   "isProAd": false,
+   "company": {
+    "slug": "tabaterra",
+    "name": "Tabaterra MMC",
+    "logo": "4203051e-fe61-40f3-a4e7-5ac82b8e738d.jpg"
+   }
+  },
+  {
+   "title": "SƏTƏMM üzrə mütəxəssis (Sərnişin daşımaları departamenti)",
+   "slug": "ady-setemm-uzre-mutexessis-sernisin-dasimalari-departamenti-75825",
+   "postedDate": "2026-09-10T14:10:53.640Z",
+   "isRemote": false,
+   "jobFunction": "Ekologiya və ətraf mühitin mühafizəsi",
+   "careerLevel": "",
+   "location": "Bakı, Azərbaycan",
+   "viewCount": 1175,
+   "type": "Tam ştat",
+   "isProAd": false,
+   "company": {
+    "slug": "ady",
+    "name": "Azərbaycan Dəmir Yolları",
+    "logo": "b4646c52-01f0-4c90-9aa7-041d9bfd9c0d.png"
+   }
+  }
+ ],
+ "totalCount": 874
+}

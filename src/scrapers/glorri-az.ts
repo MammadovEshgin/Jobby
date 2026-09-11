@@ -1,11 +1,16 @@
 import type { RawVacancy, Scraper } from "./types";
+import { dedupeVacanciesByUrl } from "./dedupe";
 import { fetchText } from "../utils/fetch";
+import { logInfo } from "../utils/log";
 
-const BASE_URL = "https://jobs.glorri.az";
-const LISTING_URL = `${BASE_URL}/`;
+const SITE_URL = "https://jobs.glorri.az";
+const API_URL = "https://api.glorri.az/job-service-v2/jobs/public";
 const USER_AGENT = "Mozilla/5.0 (compatible; VakansiyaBot/0.1; +https://jobs.glorri.az)";
+/** The public endpoint rejects anything larger. */
+const PAGE_SIZE = 18;
+const PAGES = 6;
 
-interface GlorriVacancy {
+interface GlorriJob {
   title?: string;
   slug?: string;
   postedDate?: string;
@@ -16,158 +21,84 @@ interface GlorriVacancy {
   };
 }
 
+interface GlorriResponse {
+  entities?: GlorriJob[];
+  totalCount?: number;
+}
+
 export const glorriAzScraper: Scraper = {
   name: "jobs.glorri.az",
   async fetch(): Promise<RawVacancy[]> {
-    const html = await fetchText(LISTING_URL, {
-      timeoutMs: 10_000,
-      headers: {
-        "User-Agent": USER_AGENT,
-        Accept: "text/html",
-      },
-    });
+    const pages = await Promise.allSettled(
+      Array.from({ length: PAGES }, (_, page) => fetchPage(page * PAGE_SIZE)),
+    );
+    const vacancies: RawVacancy[] = [];
+    let failures = 0;
 
-    return parseGlorriAzVacancies(html);
+    for (const page of pages) {
+      if (page.status === "fulfilled") {
+        vacancies.push(...page.value);
+      } else {
+        failures += 1;
+      }
+    }
+
+    if (failures === pages.length) {
+      throw pages[0].status === "rejected" ? pages[0].reason : new Error("No jobs.glorri.az pages fetched.");
+    }
+
+    if (failures > 0) {
+      logInfo("scraper_page_skipped", { site: "jobs.glorri.az", skipped: failures });
+    }
+
+    return dedupeVacanciesByUrl(vacancies);
   },
 };
 
-export function parseGlorriAzVacancies(html: string): RawVacancy[] {
-  const vacancies = extractVacancyEntities(html);
-  const seenUrls = new Set<string>();
-  const parsed: RawVacancy[] = [];
+async function fetchPage(offset: number): Promise<RawVacancy[]> {
+  const body = await fetchText(`${API_URL}?offset=${offset}&limit=${PAGE_SIZE}`, {
+    timeoutMs: 10_000,
+    headers: {
+      "User-Agent": USER_AGENT,
+      Accept: "application/json",
+      "Accept-Language": "az",
+    },
+  });
 
-  for (const vacancy of vacancies) {
-    const title = cleanText(vacancy.title);
-    const company = cleanText(vacancy.company?.name);
-    const companySlug = vacancy.company?.slug;
-    const vacancySlug = vacancy.slug;
-
-    if (title.length === 0 || company.length === 0 || companySlug === undefined || vacancySlug === undefined) {
-      continue;
-    }
-
-    const url = new URL(`/vacancies/${companySlug}/${vacancySlug}?isLocal=true`, BASE_URL).toString();
-
-    if (seenUrls.has(url)) {
-      continue;
-    }
-
-    seenUrls.add(url);
-    parsed.push({
-      title,
-      company,
-      location: cleanText(vacancy.location),
-      url,
-      source: "jobs.glorri.az",
-      postedAt: vacancy.postedDate,
-    });
-  }
-
-  return parsed;
+  return parseGlorriAzVacancies(body);
 }
 
-function extractVacancyEntities(html: string): GlorriVacancy[] {
-  const decoded = html.replace(/\\"/g, '"').replace(/\\u0026/g, "&");
-  const marker = '"vacancies":{"entities":';
-  const markerIndex = decoded.indexOf(marker);
-
-  if (markerIndex === -1) {
-    return extractEscapedVacancyEntities(html);
-  }
-
-  const arrayStart = decoded.indexOf("[", markerIndex + marker.length);
-
-  if (arrayStart === -1) {
-    return extractEscapedVacancyEntities(html);
-  }
-
-  const arrayText = extractJsonArray(decoded, arrayStart);
-
-  if (arrayText === undefined) {
-    return extractEscapedVacancyEntities(html);
-  }
+export function parseGlorriAzVacancies(body: string): RawVacancy[] {
+  let response: GlorriResponse;
 
   try {
-    return JSON.parse(arrayText) as GlorriVacancy[];
+    response = JSON.parse(body) as GlorriResponse;
   } catch {
-    return extractEscapedVacancyEntities(html);
+    return [];
   }
-}
 
-function extractEscapedVacancyEntities(html: string): GlorriVacancy[] {
-  const vacancyPattern =
-    /\\"title\\":\\"((?:\\\\.|[^"\\])*)\\",\\"slug\\":\\"((?:\\\\.|[^"\\])*)\\"[\s\S]*?\\"postedDate\\":\\"((?:\\\\.|[^"\\])*)\\"[\s\S]*?\\"location\\":\\"((?:\\\\.|[^"\\])*)\\"[\s\S]*?\\"company\\":{\\"slug\\":\\"((?:\\\\.|[^"\\])*)\\",\\"name\\":\\"((?:\\\\.|[^"\\])*)\\"/g;
-  const vacancies: GlorriVacancy[] = [];
+  const vacancies: RawVacancy[] = [];
 
-  for (const match of html.matchAll(vacancyPattern)) {
-    const [, title, slug, postedDate, location, companySlug, companyName] = match;
+  for (const job of response.entities ?? []) {
+    const title = cleanText(job.title);
+    const company = cleanText(job.company?.name);
+    const companySlug = job.company?.slug;
+
+    if (title.length === 0 || company.length === 0 || companySlug === undefined || job.slug === undefined) {
+      continue;
+    }
 
     vacancies.push({
-      title: decodeEscapedValue(title),
-      slug: decodeEscapedValue(slug),
-      postedDate: decodeEscapedValue(postedDate),
-      location: decodeEscapedValue(location),
-      company: {
-        slug: decodeEscapedValue(companySlug),
-        name: decodeEscapedValue(companyName),
-      },
+      title,
+      company,
+      location: cleanText(job.location),
+      url: new URL(`/vacancies/${companySlug}/${job.slug}?isLocal=true`, SITE_URL).toString(),
+      source: "jobs.glorri.az",
+      postedAt: job.postedDate,
     });
   }
 
   return vacancies;
-}
-
-function decodeEscapedValue(value: string | undefined): string {
-  if (value === undefined) {
-    return "";
-  }
-
-  try {
-    return JSON.parse(`"${value.replace(/"/g, '\\"')}"`) as string;
-  } catch {
-    return value.replace(/\\u0026/g, "&").replace(/\\"/g, '"');
-  }
-}
-
-function extractJsonArray(value: string, startIndex: number): string | undefined {
-  let depth = 0;
-  let inString = false;
-  let escaped = false;
-
-  for (let index = startIndex; index < value.length; index += 1) {
-    const char = value[index];
-
-    if (escaped) {
-      escaped = false;
-      continue;
-    }
-
-    if (char === "\\") {
-      escaped = true;
-      continue;
-    }
-
-    if (char === '"') {
-      inString = !inString;
-      continue;
-    }
-
-    if (inString) {
-      continue;
-    }
-
-    if (char === "[") {
-      depth += 1;
-    } else if (char === "]") {
-      depth -= 1;
-
-      if (depth === 0) {
-        return value.slice(startIndex, index + 1);
-      }
-    }
-  }
-
-  return undefined;
 }
 
 function cleanText(value: string | undefined): string {

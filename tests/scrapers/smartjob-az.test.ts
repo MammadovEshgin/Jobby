@@ -14,5 +14,6 @@ describe("parseSmartJobAzVacancies", () => {
       title: expect.any(String),
       url: expect.stringMatching(/^https:\/\/smartjob\.az\/vacancy\/.+/),
     });
+    expect(vacancies.every((vacancy) => vacancy.title.length > 0)).toBe(true);
   });
 });

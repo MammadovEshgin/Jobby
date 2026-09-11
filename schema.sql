@@ -6,8 +6,7 @@ CREATE TABLE IF NOT EXISTS users (
   telegram_id  INTEGER PRIMARY KEY,
   username     TEXT,
   created_at   INTEGER NOT NULL,
-  is_active    INTEGER NOT NULL DEFAULT 1,
-  search_mode  TEXT    NOT NULL DEFAULT 'normal'
+  is_active    INTEGER NOT NULL DEFAULT 1
 );
 
 CREATE TABLE IF NOT EXISTS user_fields (

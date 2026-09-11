@@ -1,0 +1,391 @@
+/**
+ * Vocabulary that lets the matcher understand a job title regardless of the
+ * language it was posted in.
+ *
+ * Every concept groups the Azerbaijani, English and (where common on local job
+ * boards) Russian spellings of the same idea under one id. Matching then happens
+ * on ids instead of words, so "Musiqi müəllimi" and "Music teacher" collapse to
+ * the same pair of concepts while "Fizika müəllimi" keeps a different one.
+ *
+ * Terms must be written in their SHORTEST canonical form. Azerbaijani is
+ * agglutinative, so the analyzer strips suffixes by walking prefixes of a token
+ * ("müəlliminə" -> "müəllim"); a term stored in an inflected form would never be
+ * reached.
+ */
+
+export type ConceptKind = "role" | "domain" | "tech";
+
+export interface ConceptDefinition {
+  /** Stable id used by the matcher and by tests. */
+  id: string;
+  kind: ConceptKind;
+  /** Surface forms in any language. Normalized when the index is built. */
+  terms: readonly string[];
+  /** Broader concepts this one is a specialisation of (java implies backend). */
+  implies?: readonly string[];
+}
+
+export const CONCEPTS: readonly ConceptDefinition[] = [
+  // ── Roles: teaching ──────────────────────────────────────────────────────
+  {
+    id: "teacher",
+    kind: "role",
+    terms: [
+      "müəllim",
+      "müəllimə",
+      "teacher",
+      "tutor",
+      "repetitor",
+      "instructor",
+      "educator",
+      "lecturer",
+      "təlimçi",
+      "trainer",
+      "dərs deyən",
+      "müəllimlik",
+      "учитель",
+      "преподаватель",
+      "педагог",
+      "репетитор",
+    ],
+  },
+  {
+    id: "caregiver",
+    kind: "role",
+    terms: ["tərbiyəçi", "dayə", "babysitter", "nanny", "воспитатель", "няня"],
+  },
+  {
+    id: "methodist",
+    kind: "role",
+    terms: ["metodist", "методист"],
+  },
+
+  // ── Roles: technology ────────────────────────────────────────────────────
+  {
+    id: "software-developer",
+    kind: "role",
+    terms: [
+      "proqramçı",
+      "proqramlaşdırıcı",
+      "developer",
+      "programmer",
+      "software developer",
+      "software engineer",
+      "proqram təminat mühəndis",
+      "proqramçi",
+      "coder",
+      "разработчик",
+      "программист",
+    ],
+  },
+  { id: "devops", kind: "role", terms: ["devops", "sre", "site reliability engineer"] },
+  { id: "qa-engineer", kind: "role", terms: ["qa", "tester", "test mühəndis", "quality assurance", "тестировщик"] },
+  { id: "sysadmin", kind: "role", terms: ["sistem administrator", "sysadmin", "system administrator", "системный администратор"] },
+  { id: "data-scientist", kind: "role", terms: ["data scientist", "data science"] },
+  { id: "data-engineer", kind: "role", terms: ["data engineer", "data mühəndis"] },
+
+  // ── Roles: business & office ─────────────────────────────────────────────
+  {
+    id: "manager",
+    kind: "role",
+    terms: ["menecer", "manager", "менеджер", "meneger"],
+  },
+  {
+    id: "head",
+    kind: "role",
+    terms: [
+      "müdir",
+      "rəhbər",
+      "direktor",
+      "director",
+      "head",
+      "chief",
+      "supervisor",
+      "начальник",
+      "директор",
+      "руководитель",
+    ],
+  },
+  {
+    id: "analyst",
+    kind: "role",
+    terms: ["analitik", "analyst", "аналитик"],
+  },
+  {
+    id: "accountant",
+    kind: "role",
+    terms: ["mühasib", "accountant", "бухгалтер", "mühasibat"],
+  },
+  { id: "auditor", kind: "role", terms: ["auditor", "audit", "аудитор"] },
+  { id: "economist", kind: "role", terms: ["iqtisadçı", "economist", "экономист"] },
+  { id: "cashier", kind: "role", terms: ["kassir", "cashier", "кассир"] },
+  {
+    id: "lawyer",
+    kind: "role",
+    terms: ["hüquqşünas", "vəkil", "jurist", "lawyer", "legal counsel", "юрист", "адвокат"],
+  },
+  {
+    id: "salesperson",
+    kind: "role",
+    terms: ["satıcı", "sales representative", "sales agent", "продавец", "təmsilçi", "merchandiser", "мерчендайзер"],
+    implies: ["sales"],
+  },
+  {
+    id: "consultant",
+    kind: "role",
+    terms: ["məsləhətçi", "consultant", "konsultant", "консультант"],
+  },
+  {
+    id: "recruiter",
+    kind: "role",
+    terms: ["rekruter", "recruiter", "recruitment", "talent acquisition", "рекрутер"],
+    implies: ["hr"],
+  },
+  {
+    id: "assistant",
+    kind: "role",
+    terms: ["köməkçi", "assistant", "ассистент", "помощник"],
+  },
+  {
+    id: "secretary",
+    kind: "role",
+    terms: ["katib", "katibə", "secretary", "секретарь", "ofis menecer", "office manager"],
+  },
+  {
+    id: "administrator",
+    kind: "role",
+    terms: ["administrator", "inzibatçı", "администратор"],
+  },
+  {
+    id: "receptionist",
+    kind: "role",
+    terms: ["resepşn", "receptionist", "resepsiyonist", "ресепшн"],
+  },
+  {
+    id: "operator",
+    kind: "role",
+    terms: ["operator", "оператор"],
+  },
+  {
+    id: "designer",
+    kind: "role",
+    terms: ["dizayner", "designer", "дизайнер"],
+  },
+  {
+    id: "engineer",
+    kind: "role",
+    terms: ["mühəndis", "engineer", "инженер"],
+  },
+  {
+    id: "architect",
+    kind: "role",
+    terms: ["memar", "architect", "архитектор"],
+  },
+  {
+    id: "technician",
+    kind: "role",
+    terms: ["texnik", "technician", "техник", "usta", "mexanik", "mechanic", "механик"],
+  },
+  {
+    id: "copywriter",
+    kind: "role",
+    terms: ["kopirayter", "copywriter", "content writer", "kontent yazar", "копирайтер"],
+  },
+  {
+    id: "translator",
+    kind: "role",
+    terms: ["tərcüməçi", "translator", "interpreter", "переводчик"],
+  },
+  {
+    id: "photographer",
+    kind: "role",
+    terms: ["fotoqraf", "photographer", "mobiloqraf", "videoqraf", "videographer", "фотограф"],
+  },
+  {
+    id: "journalist",
+    kind: "role",
+    terms: ["jurnalist", "journalist", "reporter", "журналист", "müxbir"],
+  },
+
+  // ── Roles: medical ───────────────────────────────────────────────────────
+  { id: "doctor", kind: "role", terms: ["həkim", "doctor", "physician", "врач"], implies: ["medicine"] },
+  { id: "nurse", kind: "role", terms: ["tibb bacı", "nurse", "медсестра", "feldşer"], implies: ["medicine"] },
+  { id: "pharmacist", kind: "role", terms: ["əczaçı", "pharmacist", "farmasevt", "фармацевт"], implies: ["pharmacy"] },
+  { id: "dentist", kind: "role", terms: ["stomatoloq", "dentist", "стоматолог"], implies: ["medicine"] },
+  { id: "psychologist", kind: "role", terms: ["psixoloq", "psychologist", "психолог"] },
+  { id: "speech-therapist", kind: "role", terms: ["loqoped", "speech therapist", "логопед"] },
+  { id: "veterinarian", kind: "role", terms: ["baytar", "veterinarian", "ветеринар"] },
+
+  // ── Roles: service, trade, logistics ─────────────────────────────────────
+  { id: "driver", kind: "role", terms: ["sürücü", "driver", "şofer", "водитель"] },
+  { id: "courier", kind: "role", terms: ["kuryer", "courier", "курьер", "çatdırılma"] },
+  { id: "cook", kind: "role", terms: ["aşpaz", "cook", "chef", "повар", "suşist", "pizzaçı", "qənnadçı", "pastry chef"] },
+  { id: "waiter", kind: "role", terms: ["ofisiant", "waiter", "waitress", "официант"] },
+  { id: "barista", kind: "role", terms: ["barista", "бариста"] },
+  { id: "bartender", kind: "role", terms: ["barmen", "bartender", "бармен"] },
+  { id: "security-guard", kind: "role", terms: ["mühafizəçi", "security guard", "gözətçi", "охранник", "təhlükəsizlik əməkdaş"] },
+  { id: "cleaner", kind: "role", terms: ["xadimə", "təmizlikçi", "cleaner", "уборщица", "cleaning"] },
+  { id: "storekeeper", kind: "role", terms: ["anbardar", "storekeeper", "warehouse keeper", "кладовщик"], implies: ["warehouse"] },
+  { id: "labourer", kind: "role", terms: ["fəhlə", "labourer", "laborer", "рабочий", "yükləyici", "грузчик"] },
+  { id: "electrician", kind: "role", terms: ["elektrik", "electrician", "электрик"] },
+  { id: "welder", kind: "role", terms: ["qaynaqçı", "welder", "сварщик"] },
+  { id: "plumber", kind: "role", terms: ["santexnik", "plumber", "сантехник"] },
+  { id: "carpenter", kind: "role", terms: ["dülgər", "carpenter", "плотник"] },
+  { id: "painter-decorator", kind: "role", terms: ["boyaçı", "malyar", "маляр"] },
+  { id: "tailor", kind: "role", terms: ["dərzi", "tailor", "seamstress", "швея"] },
+  { id: "hairdresser", kind: "role", terms: ["bərbər", "barber", "hairdresser", "парикмахер", "stilist", "stylist"] },
+  { id: "beautician", kind: "role", terms: ["kosmetoloq", "beautician", "косметолог", "manikürçü", "masajist", "massage therapist"] },
+  { id: "agronomist", kind: "role", terms: ["aqronom", "agronomist", "агроном"] },
+  { id: "trainer-sport", kind: "role", terms: ["məşqçi", "coach", "fitness trainer", "тренер"], implies: ["sport"] },
+  { id: "guard-babysitter", kind: "role", terms: ["dayəlik"] },
+
+  // ── Domains: school subjects (the classic false-positive source) ─────────
+  { id: "music", kind: "domain", terms: ["musiqi", "music", "музыка", "musiqiçi", "musician"] },
+  { id: "piano", kind: "domain", terms: ["piano", "fortepiano", "фортепиано"], implies: ["music"] },
+  { id: "guitar", kind: "domain", terms: ["gitara", "guitar", "гитара"], implies: ["music"] },
+  { id: "violin", kind: "domain", terms: ["skripka", "violin", "скрипка"], implies: ["music"] },
+  { id: "vocal", kind: "domain", terms: ["vokal", "vocal", "вокал", "solfecio", "solfeggio"], implies: ["music"] },
+  { id: "physics", kind: "domain", terms: ["fizika", "physics", "физика"] },
+  { id: "mathematics", kind: "domain", terms: ["riyaziyyat", "math", "mathematics", "maths", "математика", "cəbr", "algebra", "həndəsə", "geometry"] },
+  { id: "chemistry", kind: "domain", terms: ["kimya", "chemistry", "химия"] },
+  { id: "biology", kind: "domain", terms: ["biologiya", "biology", "биология"] },
+  { id: "history", kind: "domain", terms: ["tarix", "history", "история"] },
+  { id: "geography", kind: "domain", terms: ["coğrafiya", "geography", "география"] },
+  { id: "literature", kind: "domain", terms: ["ədəbiyyat", "literature", "литература"] },
+  { id: "informatics", kind: "domain", terms: ["informatika", "computer science", "информатика"] },
+  { id: "art", kind: "domain", terms: ["rəsm", "təsviri incəsənət", "art", "drawing", "рисование", "incəsənət"] },
+  { id: "sport", kind: "domain", terms: ["idman", "sport", "fitness", "bədən tərbiyə", "physical education", "спорт"] },
+  { id: "dance", kind: "domain", terms: ["rəqs", "dance", "танцы", "xoreoqraf", "choreographer"] },
+  { id: "chess", kind: "domain", terms: ["şahmat", "chess", "шахматы"] },
+  { id: "robotics", kind: "domain", terms: ["robototexnika", "robotics", "робототехника"] },
+  { id: "primary-school", kind: "domain", terms: ["ibtidai sinif", "primary school", "elementary school", "начальные классы"] },
+  { id: "preschool", kind: "domain", terms: ["məktəbəqədər", "bağça", "kindergarten", "preschool", "детский сад"] },
+
+  // ── Domains: languages ───────────────────────────────────────────────────
+  { id: "english", kind: "domain", terms: ["ingilis", "ingilis dil", "english", "английский"] },
+  { id: "russian-language", kind: "domain", terms: ["rus dil", "russian language", "русский язык"] },
+  { id: "azerbaijani-language", kind: "domain", terms: ["azərbaycan dil", "azerbaijani language"] },
+  { id: "turkish-language", kind: "domain", terms: ["türk dil", "turkish"] },
+  { id: "german-language", kind: "domain", terms: ["alman dil", "alman", "german", "немецкий"] },
+  { id: "french-language", kind: "domain", terms: ["fransız dil", "fransız", "french", "французский"] },
+  { id: "arabic-language", kind: "domain", terms: ["ərəb dil", "ərəb", "arabic"] },
+  { id: "persian-language", kind: "domain", terms: ["fars dil", "fars", "persian"] },
+  { id: "spanish-language", kind: "domain", terms: ["ispan dil", "ispan", "spanish"] },
+  { id: "chinese-language", kind: "domain", terms: ["çin dil", "chinese"] },
+
+  // ── Domains: business fields ─────────────────────────────────────────────
+  { id: "sales", kind: "domain", terms: ["satış", "sales", "продажи", "satis"] },
+  { id: "marketing", kind: "domain", terms: ["marketinq", "marketing", "маркетинг"] },
+  { id: "smm", kind: "domain", terms: ["smm", "social media", "sosial media"], implies: ["marketing"] },
+  { id: "seo", kind: "domain", terms: ["seo"], implies: ["marketing"] },
+  { id: "pr", kind: "domain", terms: ["pr", "public relations", "ictimaiyyətlə əlaqə"] },
+  { id: "advertising", kind: "domain", terms: ["reklam", "advertising", "реклама"], implies: ["marketing"] },
+  { id: "brand", kind: "domain", terms: ["brend", "brand", "бренд"], implies: ["marketing"] },
+  { id: "hr", kind: "domain", terms: ["hr", "human resources", "insan resurs", "kadr", "кадры", "персонал"] },
+  { id: "finance", kind: "domain", terms: ["maliyyə", "finance", "financial", "финансы"] },
+  { id: "banking", kind: "domain", terms: ["bank", "banking", "банк"] },
+  { id: "insurance", kind: "domain", terms: ["sığorta", "insurance", "страхование"] },
+  { id: "credit", kind: "domain", terms: ["kredit", "credit", "кредит"], implies: ["banking"] },
+  { id: "tax", kind: "domain", terms: ["vergi", "tax", "налог"] },
+  { id: "logistics", kind: "domain", terms: ["logistika", "logistics", "supply chain", "логистика", "təchizat"] },
+  { id: "procurement", kind: "domain", terms: ["satınalma", "procurement", "purchasing", "закупки"] },
+  { id: "warehouse", kind: "domain", terms: ["anbar", "warehouse", "склад"] },
+  { id: "construction", kind: "domain", terms: ["tikinti", "construction", "строительство", "inşaat"] },
+  { id: "medicine", kind: "domain", terms: ["tibb", "medical", "medicine", "медицина"] },
+  { id: "pharmacy", kind: "domain", terms: ["əczaçılıq", "pharmacy", "aptek", "аптека"] },
+  { id: "education", kind: "domain", terms: ["təhsil", "education", "tədris", "образование"] },
+  { id: "tourism", kind: "domain", terms: ["turizm", "tourism", "travel", "туризм"] },
+  { id: "restaurant", kind: "domain", terms: ["restoran", "restaurant", "kafe", "cafe", "ресторан"] },
+  { id: "retail", kind: "domain", terms: ["pərakəndə", "retail", "market", "mağaza", "магазин"] },
+  { id: "real-estate", kind: "domain", terms: ["daşınmaz əmlak", "real estate", "əmlak", "недвижимость"] },
+  { id: "customer-support", kind: "domain", terms: [
+      "müştəri xidmət",
+      "customer service",
+      "customer support",
+      "call center",
+      "contact center",
+      "çağrı mərkəz",
+      "əlaqə mərkəz",
+      "колл центр",
+      "контакт центр",
+      "техподдержка",
+    ] },
+  { id: "compliance", kind: "domain", terms: ["komplayens", "compliance", "комплаенс"] },
+  { id: "risk", kind: "domain", terms: ["risk", "риск"] },
+  { id: "quality", kind: "domain", terms: ["keyfiyyət", "quality", "качество"] },
+  { id: "safety", kind: "domain", terms: ["əməyin təhlükəsizlik", "hse", "occupational safety", "охрана труда"] },
+  { id: "law", kind: "domain", terms: ["hüquq", "legal", "юридический"] },
+  { id: "agriculture", kind: "domain", terms: ["kənd təsərrüfat", "agriculture", "aqrar", "сельское хозяйство"] },
+  { id: "energy", kind: "domain", terms: ["energetika", "energy", "enerji", "энергетика"] },
+  { id: "oil-gas", kind: "domain", terms: ["neft", "qaz", "oil", "gas", "нефть"] },
+  { id: "it", kind: "domain", terms: ["it", "information technology", "informasiya texnologiya", "ит"] },
+
+  // ── Technology qualifiers ────────────────────────────────────────────────
+  { id: "backend", kind: "tech", terms: ["backend", "back end", "server side", "бэкенд"], implies: ["it"] },
+  { id: "frontend", kind: "tech", terms: ["frontend", "front end", "фронтенд"], implies: ["it"] },
+  { id: "fullstack", kind: "tech", terms: ["fullstack", "full stack"], implies: ["it", "backend", "frontend"] },
+  { id: "mobile", kind: "tech", terms: ["mobile", "mobil", "мобильный"], implies: ["it"] },
+  { id: "android", kind: "tech", terms: ["android", "kotlin"], implies: ["mobile"] },
+  { id: "ios", kind: "tech", terms: ["ios", "swift"], implies: ["mobile"] },
+  { id: "flutter", kind: "tech", terms: ["flutter", "dart"], implies: ["mobile"] },
+  { id: "react-native", kind: "tech", terms: ["react native"], implies: ["mobile"] },
+  { id: "java", kind: "tech", terms: ["java"], implies: ["backend"] },
+  { id: "python", kind: "tech", terms: ["python", "django"], implies: ["backend"] },
+  { id: "php", kind: "tech", terms: ["php", "laravel"], implies: ["backend"] },
+  { id: "dotnet", kind: "tech", terms: ["dotnet", "net", "c#", "csharp", "asp net"], implies: ["backend"] },
+  { id: "nodejs", kind: "tech", terms: ["node", "nodejs", "node js", "nest js", "nestjs"], implies: ["backend"] },
+  { id: "golang", kind: "tech", terms: ["golang", "go lang"], implies: ["backend"] },
+  { id: "ruby", kind: "tech", terms: ["ruby", "rails"], implies: ["backend"] },
+  { id: "javascript", kind: "tech", terms: ["javascript", "js", "typescript"], implies: ["it"] },
+  { id: "react", kind: "tech", terms: ["react", "reactjs", "react js"], implies: ["frontend"] },
+  { id: "angular", kind: "tech", terms: ["angular", "angularjs"], implies: ["frontend"] },
+  { id: "vue", kind: "tech", terms: ["vue", "vuejs", "vue js"], implies: ["frontend"] },
+  { id: "sql", kind: "tech", terms: ["sql", "database", "verilənlər baza", "postgresql", "mysql", "oracle"], implies: ["it"] },
+  { id: "machine-learning", kind: "tech", terms: ["machine learning", "ml", "yapay zeka", "ai", "artificial intelligence", "süni intellekt"], implies: ["it"] },
+  { id: "cybersecurity", kind: "tech", terms: ["cybersecurity", "kibertəhlükəsizlik", "information security", "infosec"], implies: ["it"] },
+  { id: "network", kind: "tech", terms: ["network", "şəbəkə", "сеть", "cisco"], implies: ["it"] },
+  { id: "cloud", kind: "tech", terms: ["cloud", "aws", "azure", "kubernetes", "docker"], implies: ["it"] },
+  { id: "1c", kind: "tech", terms: ["1c", "1с"] },
+  { id: "sap", kind: "tech", terms: ["sap"] },
+  { id: "erp", kind: "tech", terms: ["erp"] },
+  { id: "ui-ux", kind: "tech", terms: ["ui ux", "ux ui", "ui", "ux", "user experience", "user interface"] },
+  { id: "graphic-design", kind: "tech", terms: ["qrafik", "graphic", "графический", "photoshop", "illustrator"] },
+  { id: "motion-design", kind: "tech", terms: ["motion", "motion design", "animasiya", "animation"] },
+  { id: "web", kind: "tech", terms: ["web", "veb"], implies: ["it"] },
+  { id: "autocad", kind: "tech", terms: ["autocad", "3d max", "3ds max", "revit"] },
+];
+
+/**
+ * Words that never carry meaning on their own. They are recognised (so they do
+ * not become unknown "must appear" tokens) but they are never required for a
+ * match: a search for "satış üzrə mütəxəssis" must still find "Satış meneceri".
+ */
+export const SOFT_TERMS: readonly string[] = [
+  // seniority / grade
+  "senior", "junior", "middle", "mid", "lead", "principal", "baş", "aparıcı", "böyük", "kiçik",
+  "təcrübəçi", "intern", "internship", "trainee", "stajor", "stajçı", "praktikant",
+  "expert", "ekspert", "master", "beginner", "entry level", "level",
+  // generic role nouns
+  "mütəxəssis", "specialist", "işçi", "əməkdaş", "personal", "staff", "employee", "vəzifə",
+  "position", "professional", "peşəkar", "сотрудник", "специалист",
+  // employment type / schedule
+  "tam", "natamam", "yarım", "ştat", "iş", "işi", "işə", "gün", "günü", "saat", "saatlıq", "növbəli", "shift",
+  "part time", "full time", "parttime", "fulltime", "remote", "uzaqdan", "məsafədən", "onlayn",
+  "online", "offline", "ofis", "office", "hybrid", "hibrid", "freelance", "müqavilə", "contract",
+  "temporary", "müvəqqəti", "daimi", "permanent", "vaxtı", "rejim",
+  // posting boilerplate
+  "vakansiya", "vacancy", "job", "jobs", "elan", "elanı", "tələb", "olunur", "axtarılır", "axtarır",
+  "lazımdır", "required", "wanted", "hiring", "urgent", "təcili", "yeni", "new", "open", "opening",
+  "üzrə", "üçün", "ilə", "haqqında", "and", "or", "of", "for", "the", "with", "in", "at", "to",
+  "on", "by", "from", "into", "our", "we", "you", "your", "üst", "alt", "sahəsi", "sahə", "bölmə",
+  "şöbə", "department", "şirkət", "company", "mmc", "asc", "ltd", "llc", "inc",
+  // language wrapper words that only matter next to a language name
+  "dil", "dili", "dilində", "language", "язык",
+  // gender / age wrappers
+  "qadın", "kişi", "xanım", "bəy", "female", "male", "yaş",
+  // cities and regions (a location is not a job)
+  "bakı", "baku", "sumqayıt", "gəncə", "mingəçevir", "şirvan", "lənkəran", "naxçıvan", "şəki",
+  "quba", "qəbələ", "xırdalan", "azərbaycan", "azerbaijan", "баку", "азербайджан",
+  // money
+  "azn", "maaş", "salary", "əmək", "haqq", "manat", "bonus",
+];

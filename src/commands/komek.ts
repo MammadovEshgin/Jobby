@@ -6,11 +6,10 @@ export function registerKomekCommand(bot: VakansiyaBot): void {
       [
         "Komandalar:",
         "/start - botu başladır və bildirişləri aktiv edir",
-        "/ixtisas <mətn> - ixtisas əlavə edir",
+        "/ixtisas <mətn> - ixtisas əlavə edir (məs: /ixtisas musiqi müəllimi)",
         "/ixtisaslar - ixtisaslarınızı göstərir",
         "/sil <mətn> - ixtisas silir",
-        "/axtar - indi manual axtarış edir",
-        "/genislik - axtarış genişliyini seçir",
+        "/axtar - indi axtarır və uyğun bütün vakansiyaları göndərir",
         "/stop - bildirişləri dayandırır",
       ].join("\n"),
     );

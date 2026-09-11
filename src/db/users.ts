@@ -5,12 +5,9 @@ export interface UserFieldRecord {
   createdAt: number;
 }
 
-export type SearchMode = "strict" | "normal" | "broad";
-
 export interface ActiveUserWithFields {
   telegramId: number;
   username: string | null;
-  searchMode: SearchMode;
   fields: UserFieldRecord[];
 }
 
@@ -23,7 +20,6 @@ interface UserFieldRow {
 
 interface ActiveUserFieldRow extends UserFieldRow {
   username: string | null;
-  search_mode: string;
 }
 
 export interface UpsertUserInput {
@@ -44,8 +40,8 @@ export async function upsertUser(db: D1Database, input: UpsertUserInput): Promis
   await db
     .prepare(
       `
-      INSERT INTO users (telegram_id, username, created_at, is_active, search_mode)
-      VALUES (?, ?, ?, 1, 'normal')
+      INSERT INTO users (telegram_id, username, created_at, is_active)
+      VALUES (?, ?, ?, 1)
       ON CONFLICT(telegram_id) DO UPDATE SET
         username = excluded.username,
         is_active = 1
@@ -119,34 +115,6 @@ export async function setActive(db: D1Database, telegramId: number, isActive: bo
     .run();
 }
 
-export async function getSearchMode(db: D1Database, telegramId: number): Promise<SearchMode> {
-  const result = await db
-    .prepare(
-      `
-      SELECT search_mode
-      FROM users
-      WHERE telegram_id = ?
-      `,
-    )
-    .bind(telegramId)
-    .first<{ search_mode: string }>();
-
-  return normalizeSearchMode(result?.search_mode);
-}
-
-export async function setSearchMode(db: D1Database, telegramId: number, mode: SearchMode): Promise<void> {
-  await db
-    .prepare(
-      `
-      UPDATE users
-      SET search_mode = ?
-      WHERE telegram_id = ?
-      `,
-    )
-    .bind(mode, telegramId)
-    .run();
-}
-
 export async function listActiveUsersWithFields(
   db: D1Database,
   telegramId?: number,
@@ -154,7 +122,7 @@ export async function listActiveUsersWithFields(
   const result = await db
     .prepare(
       `
-      SELECT u.telegram_id, u.username, u.search_mode, f.field, f.raw_field, f.created_at
+      SELECT u.telegram_id, u.username, f.field, f.raw_field, f.created_at
       FROM users u
       INNER JOIN user_fields f ON f.telegram_id = u.telegram_id
       WHERE u.is_active = 1 AND (? IS NULL OR u.telegram_id = ?)
@@ -172,7 +140,6 @@ export async function listActiveUsersWithFields(
       {
         telegramId: row.telegram_id,
         username: row.username,
-        searchMode: normalizeSearchMode(row.search_mode),
         fields: [],
       };
 
@@ -190,14 +157,6 @@ function mapUserFieldRow(row: UserFieldRow): UserFieldRecord {
     rawField: row.raw_field,
     createdAt: row.created_at,
   };
-}
-
-export function normalizeSearchMode(value: string | null | undefined): SearchMode {
-  if (value === "strict" || value === "normal" || value === "broad") {
-    return value;
-  }
-
-  return "normal";
 }
 
 function unixSeconds(): number {
