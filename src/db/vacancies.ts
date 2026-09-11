@@ -1,3 +1,5 @@
+import { unixSeconds } from "./time";
+
 export interface MarkSentInput {
   fingerprint: string;
   telegramId: number;
@@ -63,8 +65,4 @@ export async function pruneOlderThan(db: D1Database, days: number): Promise<numb
     .run();
 
   return result.meta.changes;
-}
-
-function unixSeconds(): number {
-  return Math.floor(Date.now() / 1000);
 }

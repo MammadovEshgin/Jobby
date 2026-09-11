@@ -1,3 +1,5 @@
+import { unixSeconds } from "./time";
+
 export interface ManualSearchLimit {
   allowed: boolean;
   retryAfterSeconds: number;
@@ -46,8 +48,4 @@ export async function recordManualSearch(db: D1Database, telegramId: number): Pr
     )
     .bind(telegramId, unixSeconds())
     .run();
-}
-
-function unixSeconds(): number {
-  return Math.floor(Date.now() / 1000);
 }

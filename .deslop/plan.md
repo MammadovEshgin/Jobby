@@ -15,8 +15,8 @@ from `master`. Baseline re-measured on the branch: check **pass** · 86/86 tests
 | 1 | `src/scrapers` + `tests/scrapers` | 17 | 891 | 11 | 25 | 7 | direct (7/10 files) | done 6a52c7a · fix 6ad840e · net -71 src · CC max 11 → 10 · tests 14 → 58 |
 | 2 | `src/matching` + `tests/match,normalize` | 6 | 1,355 | 6 | 8 | 0 | direct + strong (56) | done dc4c529 · fix 5f5b30a · net +2 prod · CC 6 → 6 · tests 56 → 71 |
 | 3 | `src/pipeline` + `tests/pipeline,format` | 4 | 624 | 8 | 9 | 0 | direct (13) | done b02d51e · fix ac2dffa · net +5 prod · CC 8 → 7 · tests 13 → 28 |
-| 4 | `src/commands` | 7 | 216 | 7 | 12 | 7 | none | done PENDING5 · net -2 prod · tests 0 → 33 |
-| 5 | `src/db` | 4 | 411 | 5 | 8 | 1 | none | pending |
+| 4 | `src/commands` | 7 | 216 | 7 | 12 | 7 | none | done 2c45ffb · fix none (0 provable in scope) · net -2 prod · tests 0 → 33 |
+| 5 | `src/db` | 4 | 411 | 5 | 8 | 1 | none | done PENDING6 · net -8 prod · tests 0 → 59 |
 | 6 | `src/utils` + `scripts` + `tests/fingerprint` | 5 | 211 | 7 | 6 | 0 | partial (1/3) | pending |
 | 7 | `src/bot.ts` + `src/index.ts` | 2 | 149 | 4 | 6 | 2 | none | pending |
 | 8 | `README.md`, `AGENTS.md`, `CODING_STANDARDS.md` | 3 | 298 | n/a | — | 0 | n/a | pending |
@@ -236,3 +236,80 @@ everyone behind them now gets delivered.
 - `axtar.ts:40` — `search()` takes the whole `BotContext` but needs only `ctx.env` and `ctx.api`.
 - `README.md:54-59` — the command table omits `/komek`, which the bot's own help text advertises.
 - Untestable: none. All seven command files reached the seam.
+
+### Slice 4 — audit findings (0 fixed: every fix needed a new string, a product decision, or an
+edit outside the slice)
+
+**HIGH — `src/bot.ts:61`, fail-open error boundary. Fix in slice 7.**
+`bot.catch` never runs under `webhookCallback`: grammY awaits `bot.handleUpdate` with no catch, and
+only the long-polling `handleUpdates` consults `errorHandler`. So ANY handler rejection escapes to
+`src/index.ts:31`, the Worker `fetch` rejects, Cloudflare answers 500, and Telegram redelivers the
+update forever. Reproduced with a probe. Every finding below inherits its blast radius from this
+one. Fix: `bot.errorBoundary` in `bot.ts`, or a try/catch in `index.ts`.
+
+Needs a decision (each requires a new Azerbaijani string or a product limit):
+- `ixtisaslar.ts:18` — a user with enough fields overflows Telegram's 4096 limit (1024 one-char
+  fields, or 100 forty-char ones). The reply rejects, and via the bug above every `/ixtisaslar` from
+  that user 500s and redelivers: they are locked out of their own list and the delete keyboard.
+- `ixtisas.ts:37` — `/ixtisas <4035+ chars>`: `upsertUser` and `addField` land, THEN the echo reply
+  rejects, so the field is stored with no confirmation and the redelivered update repeats both
+  writes.
+- `ixtisas.ts:31` — no per-user field cap and no max field length. One account can store unbounded
+  `user_fields` rows, which are then recompiled and matched on every hourly run forever.
+- `axtar.ts:15` — a user who sent `/stop` still passes the `fields.length` check, burns the
+  cooldown, and runs a full search that returns nothing (`listActiveUsersWithFields` filters
+  `is_active = 1`). When `vacancy_snapshot` is empty this falls through to a full live scrape of
+  every board, so a deactivated account can drive one every 10 seconds with guaranteed zero output.
+- `axtar.ts:45` — the notice `sendMessage` calls sit inside the try guarding `runManualSearch`, so a
+  403 or 429 on the notice reports a search that COMPLETED as `manual_search_failed`.
+
+Out of scope, for later slices:
+- `axtar.ts:22` — `checkManualSearchLimit` and `recordManualSearch` are check-then-act with no
+  atomicity; two interleaved `/axtar` both pass the cooldown. Fix is a conditional write in
+  `src/db/manual-search.ts` (slice 5).
+- `axtar.ts:31` — `recordManualSearch` lands before the ack; if the ack fails the search never
+  starts but the cooldown is consumed.
+- `bot.ts:41` — **A01.** `delete_field:<field>` callback data carries no owner id. `/ixtisaslar` in
+  a group posts that keyboard; any member pressing a button deletes their OWN identically-named
+  field and overwrites the requester's message. Slice 7.
+
+Rulings requested and given:
+- `/sil ***` empty-field query is **harmless**: `field` can never be `''` in `user_fields` (three
+  writers all reject it), the DELETE is parameterised and scoped by `telegram_id`, matches 0 rows,
+  and the reply is truthful. Cost is one wasted D1 write.
+- The six `ctx.from` guards are **correct and complete**. `/komek` is the only command without one
+  and the only one that never reads `ctx.from`. grammY dispatches `bot.command` only for `message`
+  and `channel_post`; channel posts carry no `from`, which is exactly the guarded case.
+- `argument.ts:3` `detect-non-literal-regexp` is **noise**: `command` is a string literal at both
+  call sites, the pattern has no nested quantifier or alternation so it cannot ReDoS. Worth noting
+  separately: grammY already computes this argument into `ctx.match`, so the helper is redundant
+  with the framework.
+
+Documentation drift confirmed independently by two workers:
+- `CODING_STANDARDS.md:64-75` lists 11 pre-existing warnings; the repo has **7**. `--max-warnings 11`
+  is 4 looser than reality and would silently admit four new warnings.
+- `komek.ts:12` tells users `/axtar` returns "bütün" (all) matching vacancies; `runManualSearch`
+  caps at 60. The same help list omits `/komek` itself.
+
+### Slice 5 — found, not changed (from the worker)
+
+- `vacancies.ts:51` and `manual-search.ts` — the two queued defects were LOCKED, not cleaned away.
+  "forgets a delivery for a vacancy the board is still listing" and "lets two overlapping searches
+  through" assert the current (wrong) outcome, so the audit's fix will turn them red.
+- `snapshot.ts:102` `pruneSnapshotOlderThan` has no non-negative-days guard where `pruneOlderThan`
+  does; a negative window puts the cutoff in the future and deletes every row. Locked as-is.
+- **Untestable with this harness: the SQL text itself.** The fake D1 models each predicate rather
+  than executing SQL, so a mutation inside a WHERE / ORDER BY / ON CONFLICT clause is invisible —
+  that is the one surviving probe (`first_seen < ?` -> `<= ?`). Logic, bound parameters and row
+  mapping are covered; the statements are not. Closing it needs a real D1 in the harness
+  (`@cloudflare/vitest-pool-workers`), a harness change outside this slice. Every SQL literal was
+  therefore left untouched, per hard rule 1.
+- `snapshot.ts:41` — `ON CONFLICT` deliberately does not update `title`, `company` or `source`: the
+  fingerprint derives from title+company so they cannot drift. Looks like an omission, is not.
+- Proposal: `setActive(db, id, false)` is a boolean flag parameter; `activateUser` /
+  `deactivateUser` would read better, but both call sites are outside the slice.
+- Proposal: `pruneSnapshotOlderThan` carries a redundant qualifier, kept only because `run.ts`
+  imports both prunes unqualified into one file.
+- `UpsertUserInput`, `AddFieldInput`, `MarkSentInput`, `ManualSearchLimit` are exported with no
+  outside importer, but each names a parameter or return type of an exported function, so
+  un-exporting would make those signatures unnameable. Kept deliberately.

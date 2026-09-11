@@ -1,4 +1,5 @@
 import type { RawVacancy } from "../scrapers/types";
+import { unixSeconds } from "./time";
 
 /** A scraped vacancy plus the fingerprint used to deduplicate and track it. */
 export interface SnapshotVacancy {
@@ -111,8 +112,4 @@ export async function pruneSnapshotOlderThan(db: D1Database, days: number): Prom
     .run();
 
   return result.meta.changes;
-}
-
-function unixSeconds(): number {
-  return Math.floor(Date.now() / 1000);
 }

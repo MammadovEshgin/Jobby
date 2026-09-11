@@ -1,3 +1,5 @@
+import { unixSeconds } from "./time";
+
 export interface UserFieldRecord {
   telegramId: number;
   field: string;
@@ -34,9 +36,6 @@ export interface AddFieldInput {
 }
 
 export async function upsertUser(db: D1Database, input: UpsertUserInput): Promise<void> {
-  const now = unixSeconds();
-  const username = input.username ?? null;
-
   await db
     .prepare(
       `
@@ -47,7 +46,7 @@ export async function upsertUser(db: D1Database, input: UpsertUserInput): Promis
         is_active = 1
       `,
     )
-    .bind(input.telegramId, username, now)
+    .bind(input.telegramId, input.username ?? null, unixSeconds())
     .run();
 }
 
@@ -163,8 +162,4 @@ function mapUserFieldRow(row: UserFieldRow): UserFieldRecord {
     rawField: row.raw_field,
     createdAt: row.created_at,
   };
-}
-
-function unixSeconds(): number {
-  return Math.floor(Date.now() / 1000);
 }
