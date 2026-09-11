@@ -8,6 +8,51 @@ Preflight cleared 2026-09-11: setup committed as `4b79f80`, branch `deslop/2026-
 from `master`. Baseline re-measured on the branch: check **pass** · 86/86 tests · 11 lint warnings
 (the ratcheted `eslint-plugin-security` findings) · complexity max 11 · erosion 6%.
 
+## Resume here (paused 2026-09-11)
+
+Branch `deslop/2026-09-11`, 9 commits ahead of `master`. Working tree clean, `npm run check` green,
+282/282 tests. Nothing is half-finished: the slice 5 audit worker was stopped before it wrote
+anything, so slice 5's audit is simply not yet run.
+
+Next command: `/clean-code:deslop repo` — it re-reads this file and picks up at the first row that
+is not `done`.
+
+Order of remaining work:
+1. **Slice 5 audit** (not run). Three fixes are specified and already have characterization tests
+   locking the wrong behaviour, so each fix turns a named test red:
+   - `vacancies.ts:51` re-delivers a vacancy a board lists for over 60 days
+     (test: "forgets a delivery for a vacancy the board is still listing")
+   - `manual-search.ts` cooldown is check-then-act, so two concurrent `/axtar` both pass
+     (test: "lets two overlapping searches through")
+   - `snapshot.ts:102` has no non-negative-days guard; a negative window deletes every row
+     (test: "empties the table when the window is negative")
+2. **Slice 6** `src/utils` + `scripts` + `tests/fingerprint` — carries the queued finding that
+   `utils/fetch.ts:24-33` retries three times with no backoff and retries non-retryable statuses;
+   the 10 s timeout is per attempt, so one dead URL holds a scraper 30 s.
+3. **Slice 7** `src/bot.ts` + `src/index.ts` — the highest-value slice left. Two confirmed bugs:
+   the fail-open `bot.catch` (HIGH) and the group callback-data ownership hole (A01). Also where
+   the six duplicated `ctx.from` guards become one middleware, and where the hand-rolled Telegram
+   sender can join grammY.
+4. **Slice 8** docs.
+5. **Structure phase**, then Finish.
+
+### Owed to the user before the run ends
+
+Decisions that need their words or their product call, batched deliberately rather than guessed:
+- A cap on followed fields per user, and a max field length (`/ixtisas` currently unbounded).
+- Chunking or capping `/ixtisaslar` so a long list cannot exceed Telegram's 4096 limit.
+- What `/axtar` should do for a user who has sent `/stop` (currently: burns the cooldown, searches,
+  returns nothing, and on an empty snapshot drives a full live scrape every 10 seconds).
+- `komek.ts:12` promises "bütün" (all) matching vacancies; the code caps at 60.
+
+Orchestrator tasks for the Finish phase, not owned by any slice:
+- `CODING_STANDARDS.md` pre-existing-findings list is stale (says 11 warnings, repo has 7) and
+  `package.json`'s `--max-warnings 11` is 4 looser than reality.
+- The complexity ratchet can close: `eslint.clean-code.mjs` is at `max: 11`, repo max is now 10.
+- `lexicon.ts` `kind` is read only by the trust sweep in `tests/match.test.ts`; the earlier
+  proposal to delete it as dead is now void.
+- `README.md` command table omits `/komek`.
+
 ## Slices
 
 | # | Slice | Files | Lines | CC max | Churn | Entry points | Tests | Status |
@@ -16,7 +61,7 @@ from `master`. Baseline re-measured on the branch: check **pass** · 86/86 tests
 | 2 | `src/matching` + `tests/match,normalize` | 6 | 1,355 | 6 | 8 | 0 | direct + strong (56) | done dc4c529 · fix 5f5b30a · net +2 prod · CC 6 → 6 · tests 56 → 71 |
 | 3 | `src/pipeline` + `tests/pipeline,format` | 4 | 624 | 8 | 9 | 0 | direct (13) | done b02d51e · fix ac2dffa · net +5 prod · CC 8 → 7 · tests 13 → 28 |
 | 4 | `src/commands` | 7 | 216 | 7 | 12 | 7 | none | done 2c45ffb · fix none (0 provable in scope) · net -2 prod · tests 0 → 33 |
-| 5 | `src/db` | 4 | 411 | 5 | 8 | 1 | none | done PENDING6 · net -8 prod · tests 0 → 59 |
+| 5 | `src/db` | 4 | 411 | 5 | 8 | 1 | none | done 4370349 · net -8 prod · tests 0 → 59 |
 | 6 | `src/utils` + `scripts` + `tests/fingerprint` | 5 | 211 | 7 | 6 | 0 | partial (1/3) | pending |
 | 7 | `src/bot.ts` + `src/index.ts` | 2 | 149 | 4 | 6 | 2 | none | pending |
 | 8 | `README.md`, `AGENTS.md`, `CODING_STANDARDS.md` | 3 | 298 | n/a | — | 0 | n/a | pending |
