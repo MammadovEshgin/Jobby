@@ -37,7 +37,7 @@ interface SnapshotRow {
 }
 
 /** Just enough of D1 for the pipeline: users, their fields, sent ids and the snapshot. */
-function fakeDb(fields: string[]): D1Database {
+function fakeDb(fields: string[], options: { failOn?: string } = {}): D1Database {
   const sent = new Set<string>();
   const snapshot = new Map<string, SnapshotRow>();
 
@@ -71,6 +71,10 @@ function fakeDb(fields: string[]): D1Database {
         return null;
       },
       async run() {
+        if (options.failOn !== undefined && sql.includes(options.failOn)) {
+          throw new Error(`D1 rejected: ${options.failOn}`);
+        }
+
         if (sql.includes("INSERT INTO sent_vacancies")) {
           sent.add(String(values[0]));
         }
@@ -109,6 +113,11 @@ function fakeDb(fields: string[]): D1Database {
 /** Telegram's 429 body; `retry_after: 0` keeps the retry wait out of the test's runtime. */
 function rateLimited(): Response {
   return new Response(JSON.stringify({ parameters: { retry_after: 0 } }), { status: 429 });
+}
+
+/** The vacancy titles a rendered message actually carries. */
+function titlesIn(message: string): string[] {
+  return [...message.matchAll(/<b>(Musiqi müəllimi \d+)<\/b>/gu)].map(([, title]) => title ?? "");
 }
 
 function sentMessages(): string[] {
@@ -259,6 +268,60 @@ describe("runPipeline", () => {
     const result = await runPipeline({ DB: fakeDb(["musiqi muellimi"]), BOT_TOKEN: "token" });
 
     expect(result.vacanciesSent).toBe(0);
+  });
+
+  it("does not resend the vacancies of a message that already landed", async () => {
+    vacancies.current = Array.from({ length: 60 }, (_, index) =>
+      vacancy(`Musiqi müəllimi ${index}`, `Company ${index}`),
+    );
+    vi.mocked(globalThis.fetch)
+      .mockResolvedValueOnce(new Response("{}", { status: 200 }))
+      .mockResolvedValueOnce(new Response("{}", { status: 403 }));
+
+    const db = fakeDb(["musiqi muellimi"]);
+    await runPipeline({ DB: db, BOT_TOKEN: "token" });
+    const landed = titlesIn(sentMessages()[0] ?? "");
+    vi.mocked(globalThis.fetch).mockClear();
+
+    await runPipeline({ DB: db, BOT_TOKEN: "token" });
+    const resent = sentMessages().join("\n");
+
+    expect(landed.length).toBeGreaterThan(0);
+    expect(landed.some((title) => resent.includes(`<b>${title}</b>`))).toBe(false);
+  });
+
+  it("keeps the run alive when the sent-vacancy write fails", async () => {
+    vacancies.current = [vacancy("Musiqi müəllimi")];
+
+    const result = await runPipeline({
+      DB: fakeDb(["musiqi muellimi"], { failOn: "INSERT INTO sent_vacancies" }),
+      BOT_TOKEN: "token",
+    });
+
+    expect(result.usersChecked).toBe(1);
+    expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("still delivers when the snapshot write fails", async () => {
+    vacancies.current = [vacancy("Musiqi müəllimi")];
+
+    const result = await runPipeline({
+      DB: fakeDb(["musiqi muellimi"], { failOn: "INSERT INTO vacancy_snapshot" }),
+      BOT_TOKEN: "token",
+    });
+
+    expect(result.vacanciesSent).toBe(1);
+  });
+
+  it("still delivers when the nightly prune fails", async () => {
+    vacancies.current = [vacancy("Musiqi müəllimi")];
+
+    const result = await runPipeline(
+      { DB: fakeDb(["musiqi muellimi"], { failOn: "DELETE FROM" }), BOT_TOKEN: "token" },
+      { pruneOld: true },
+    );
+
+    expect(result.vacanciesSent).toBe(1);
   });
 });
 

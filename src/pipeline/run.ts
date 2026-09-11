@@ -11,7 +11,7 @@ import { fetchAllVacancies } from "../scrapers";
 import type { RawVacancy } from "../scrapers/types";
 import { fingerprint } from "../utils/fingerprint";
 import { logError, logInfo } from "../utils/log";
-import { formatVacancyMessages } from "./format";
+import { formatVacancyMessages, type VacancyMessage } from "./format";
 
 /** Upper bound on a single manual search so one reply never runs to dozens of messages. */
 export const MANUAL_SEARCH_LIMIT = 60;
@@ -51,14 +51,13 @@ export async function runPipeline(
   options: { pruneOld?: boolean } = {},
 ): Promise<PipelineResult> {
   if (options.pruneOld === true) {
-    await pruneOlderThan(env.DB, 60);
-    await pruneSnapshotOlderThan(env.DB, 14);
+    await pruneOldRows(env.DB);
   }
 
   const fetched = await fetchAllVacancies();
   const candidates = await toCandidates(fetched);
 
-  await saveSnapshot(env.DB, candidates);
+  await rememberSnapshot(env.DB, candidates);
 
   const users = await listActiveUsersWithFields(env.DB);
   const delivered = await deliver(env, candidates, users, {
@@ -93,7 +92,7 @@ export async function runManualSearch(
     const live = await fetchAllVacancies();
     scraped = live.length;
     candidates = await toCandidates(live);
-    await saveSnapshot(env.DB, candidates);
+    await rememberSnapshot(env.DB, candidates);
   } else {
     candidates = stored.map(({ vacancy, fingerprint: key }) => ({
       vacancy,
@@ -108,6 +107,25 @@ export async function runManualSearch(
   });
 
   return { scraped, deduped: candidates.length, usersChecked: users.length, ...delivered };
+}
+
+/** The snapshot only answers `/axtar`; a failed write costs that, never this run's delivery. */
+async function rememberSnapshot(db: D1Database, candidates: readonly Candidate[]): Promise<void> {
+  try {
+    await saveSnapshot(db, candidates);
+  } catch (error) {
+    logError("snapshot_save_failed", error);
+  }
+}
+
+/** Housekeeping: a failed prune costs the table its trim, never the run its delivery. */
+async function pruneOldRows(db: D1Database): Promise<void> {
+  try {
+    await pruneOlderThan(db, 60);
+    await pruneSnapshotOlderThan(db, 14);
+  } catch (error) {
+    logError("prune_failed", error);
+  }
 }
 
 async function toCandidates(vacancies: readonly RawVacancy[]): Promise<Candidate[]> {
@@ -140,49 +158,86 @@ async function deliver(
   let truncated = false;
 
   for (const user of users) {
-    const sent = await listSentFingerprints(env.DB, user.telegramId);
-    const matched = matchForUser(candidates, user, sent);
-    const selected = options.includeAlreadySent
-      ? matched
-      : matched.filter((match) => !match.alreadySent);
-
-    if (selected.length === 0) {
-      continue;
-    }
-
-    const visible = selected.slice(0, options.limit);
-    truncated = truncated || visible.length < selected.length;
-
-    const messages = formatVacancyMessages({
-      vacancies: visible.map((match) => match.vacancy),
-      total: selected.length,
-    });
-
     try {
-      for (const message of messages) {
-        await sendTelegramMessage(env.BOT_TOKEN, user.telegramId, message);
-        messagesSent += 1;
-      }
+      const result = await deliverToUser(env, candidates, user, options);
+      messagesSent += result.messagesSent;
+      vacanciesSent += result.vacanciesSent;
+      truncated = truncated || result.truncated;
     } catch (error) {
-      // One blocked or rate-limited chat must not stop the rest of the run.
+      // One unreachable chat or failed write must not stop the rest of the run.
       logError("delivery_failed", error, { telegramId: user.telegramId });
-      continue;
     }
-
-    await markManySent(
-      env.DB,
-      visible
-        .filter((match) => !match.alreadySent)
-        .map((match) => ({
-          fingerprint: match.fingerprint,
-          telegramId: user.telegramId,
-          source: match.vacancy.source,
-        })),
-    );
-    vacanciesSent += visible.length;
   }
 
   return { messagesSent, vacanciesSent, truncated };
+}
+
+async function deliverToUser(
+  env: PipelineEnv,
+  candidates: readonly Candidate[],
+  user: ActiveUserWithFields,
+  options: { includeAlreadySent: boolean; limit: number },
+): Promise<Pick<PipelineResult, "messagesSent" | "vacanciesSent" | "truncated">> {
+  const sent = await listSentFingerprints(env.DB, user.telegramId);
+  const matched = matchForUser(candidates, user, sent);
+  const selected = options.includeAlreadySent
+    ? matched
+    : matched.filter((match) => !match.alreadySent);
+  const visible = selected.slice(0, options.limit);
+
+  if (visible.length === 0) {
+    return { messagesSent: 0, vacanciesSent: 0, truncated: false };
+  }
+
+  const counts = await sendMessages(
+    env.BOT_TOKEN,
+    user.telegramId,
+    formatVacancyMessages({
+      vacancies: visible.map((match) => match.vacancy),
+      total: selected.length,
+    }),
+  );
+
+  // Only what landed is recorded, so a half-delivered batch neither repeats the
+  // messages that arrived nor loses the ones that did not.
+  await markManySent(
+    env.DB,
+    visible
+      .slice(0, counts.vacanciesSent)
+      .filter((match) => !match.alreadySent)
+      .map((match) => ({
+        fingerprint: match.fingerprint,
+        telegramId: user.telegramId,
+        source: match.vacancy.source,
+      })),
+  );
+
+  return { ...counts, truncated: visible.length < selected.length };
+}
+
+/** Sends in order and stops at the first failure; the caller records what landed. */
+async function sendMessages(
+  token: string,
+  telegramId: number,
+  messages: readonly VacancyMessage[],
+): Promise<Pick<PipelineResult, "messagesSent" | "vacanciesSent">> {
+  let messagesSent = 0;
+  let vacanciesSent = 0;
+
+  for (const message of messages) {
+    try {
+      await sendTelegramMessage(token, telegramId, message.text);
+    } catch (error) {
+      // One blocked or rate-limited chat must not stop the rest of the run.
+      logError("delivery_failed", error, { telegramId });
+      break;
+    }
+
+    messagesSent += 1;
+    vacanciesSent += message.vacancyCount;
+  }
+
+  return { messagesSent, vacanciesSent };
 }
 
 function matchForUser(

@@ -14,7 +14,7 @@ from `master`. Baseline re-measured on the branch: check **pass** · 86/86 tests
 |---|---|---|---|---|---|---|---|---|
 | 1 | `src/scrapers` + `tests/scrapers` | 17 | 891 | 11 | 25 | 7 | direct (7/10 files) | done 6a52c7a · fix 6ad840e · net -71 src · CC max 11 → 10 · tests 14 → 58 |
 | 2 | `src/matching` + `tests/match,normalize` | 6 | 1,355 | 6 | 8 | 0 | direct + strong (56) | done dc4c529 · fix 5f5b30a · net +2 prod · CC 6 → 6 · tests 56 → 71 |
-| 3 | `src/pipeline` + `tests/pipeline,format` | 4 | 624 | 8 | 9 | 0 | direct (13) | done PENDING3 · net +5 prod · CC 8 → 7 · tests 13 → 21 |
+| 3 | `src/pipeline` + `tests/pipeline,format` | 4 | 624 | 8 | 9 | 0 | direct (13) | done b02d51e · fix PENDING4 · net +5 prod · CC 8 → 7 · tests 13 → 28 |
 | 4 | `src/commands` | 7 | 216 | 7 | 12 | 7 | none | pending |
 | 5 | `src/db` | 4 | 411 | 5 | 8 | 1 | none | pending |
 | 6 | `src/utils` + `scripts` + `tests/fingerprint` | 5 | 211 | 7 | 6 | 0 | partial (1/3) | pending |
@@ -183,3 +183,41 @@ pipeline shape (50 users x 20 fields x 2000 candidates) is 107ms.
   has no bot instance, which explains it. Out of scope here; candidate for slice 7.
 - `runPipeline({ pruneOld: true })` (the 3am branch) has no test: the fake D1 could only observe it
   by matching SQL text, which would couple the test to the statement. Left untested deliberately.
+
+### Slice 3 — audit findings
+
+Fixed (6, each proven red-first):
+- `format.ts:67` **security** — a scraped `url` of `javascript:alert(...)` survived `scrapers/url.ts`
+  (`new URL('javascript:…', base)` keeps the scheme) and reached the delivered
+  `<a href="javascript:…">`. Now only an http(s) URL becomes a link (allowlist, not blocklist).
+- `format.ts:32` — a 4023-char scraped URL (busy.az interpolates `slug` unbounded) produced a
+  ~20,000-char message; Telegram answers 400, the throw drops that user's whole batch, and nothing
+  is fingerprinted so it repeats every hour. URLs over 300 chars no longer become links.
+- `run.ts:203` — when a batch spans three messages and Telegram rejects the second, the first
+  message's vacancies were delivered but never recorded, so the next run sent them again.
+  `formatVacancyMessages` now returns `{ text, vacancyCount }` and `deliver` records exactly the
+  prefix that landed.
+- `run.ts:203` — a D1 failure writing `sent_vacancies` for one user escaped `deliver` and
+  `runPipeline`, so every later user got nothing that hour.
+- `run.ts:60` — a D1 failure writing `vacancy_snapshot` threw before delivery, so a successful
+  scrape delivered nothing.
+- `run.ts:54` — a D1 failure on the nightly prune threw before scraping. This is also the first test
+  to enter the `pruneOld: true` branch, and it asserts behaviour rather than SQL text.
+
+**Reported, needs a decision — data integrity, and it re-sends vacancies:**
+- `src/db/vacancies.ts:49` reached from `run.ts:123` — a vacancy a board keeps listing for more than
+  60 days has its `sent_vacancies` row pruned (`first_seen` is fixed at first delivery) while
+  `vacancy_snapshot.seen_at` is refreshed hourly, so the next run delivers it to the same user a
+  second time. Fix belongs in `src/db` (slice 5): either prune only fingerprints absent from
+  `vacancy_snapshot`, or refresh `first_seen` on each sighting.
+
+Reported, not fixed:
+- `run.ts:274` — the hand-rolled Telegram `fetch` has no timeout or `AbortSignal`; one hung
+  connection stalls the hourly run for every user behind it. Belongs with the grammY consolidation.
+- `format.ts:79` — a scraped URL with a raw space reaches the `href` verbatim; the fix validates
+  with `new URL()` but renders the original string. Normalising would change an existing assertion
+  and needs the live Bot API to settle.
+
+Trade-off accepted: under a persistent D1 write outage the run now repeats a user's batch hourly
+instead of stopping at the first user. That user was already going to see the duplicate, and
+everyone behind them now gets delivered.
