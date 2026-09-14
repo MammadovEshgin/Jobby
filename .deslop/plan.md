@@ -62,8 +62,8 @@ Orchestrator tasks for the Finish phase, not owned by any slice:
 | 3 | `src/pipeline` + `tests/pipeline,format` | 4 | 624 | 8 | 9 | 0 | direct (13) | done b02d51e · fix ac2dffa · net +5 prod · CC 8 → 7 · tests 13 → 28 |
 | 4 | `src/commands` | 7 | 216 | 7 | 12 | 7 | none | done 2c45ffb · fix none (0 provable in scope) · net -2 prod · tests 0 → 33 |
 | 5 | `src/db` | 4 | 411 | 5 | 8 | 1 | none | done 4370349 · fix 77eaf30 + c915667 · net -8 prod · tests 0 → 66 |
-| 6 | `src/utils` + `scripts` + `tests/fingerprint` | 5 | 211 | 7 | 6 | 0 | partial (1/3) | done c4f3028 · fix PENDING9 · net -57 prod · CC 7 → 6 · tests 3 → 42 |
-| 7 | `src/bot.ts` + `src/index.ts` | 2 | 149 | 4 | 6 | 2 | none | pending |
+| 6 | `src/utils` + `scripts` + `tests/fingerprint` | 5 | 211 | 7 | 6 | 0 | partial (1/3) | done c4f3028 · fix 647e5ae · net -57 prod · CC 7 → 6 · tests 3 → 42 |
+| 7 | `src/bot.ts` + `src/index.ts` | 2 | 149 | 4 | 6 | 2 | none | done PENDING10 · CC 5 → 4 · tests 0 → 42 |
 | 8 | `README.md`, `AGENTS.md`, `CODING_STANDARDS.md` | 3 | 298 | n/a | — | 0 | n/a | pending |
 
 ## Why this order
@@ -439,3 +439,21 @@ Fixed (3, each proven red-first):
   failure mode, so its size is a product call.
 - Network-error and timeout retries still fire without a pause, so several pages of one board that
   time out together retry in the same instant. Kept deliberately; four existing tests assert it.
+
+### Slice 7 — found, not changed (from the worker)
+
+Scope was widened narrowly to `src/commands` + `tests/commands` for one reshape: the six copied
+sender guards became `withSender` in `bot.ts` (type predicate; no `!`, `as` or `@ts-`; reply
+byte-identical; `/komek` unaffected).
+
+- HIGH fail-open error boundary and the delete-button ownership hole: locked by tests, fixed by the
+  orchestrator directly in the next commits (no audit worker, to finish faster).
+- `index.ts:19` — the bot is built per request with no `botInfo`, so grammY calls `getMe` on every
+  webhook request BEFORE the secret check: every update costs an extra Telegram call, and any
+  unauthenticated POST makes the Worker call Telegram with the real token. Needs a decision on
+  where `botInfo` comes from. Locked by "asks Telegram who the bot is on every request, before
+  checking the secret".
+- Malformed percent-encoding in callback data throws `URIError`; with the fail-open boundary that
+  was a 500-and-redelivery loop.
+- `VakansiyaBot` type and the `VakansiyaBot/0.1` User-Agent still carry the pre-rename name.
+- `src/bot.ts` and `src/commands/*` import each other (safe at call time); structure decision.

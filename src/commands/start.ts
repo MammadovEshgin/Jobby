@@ -1,30 +1,28 @@
-import type { BotContext, VakansiyaBot } from "../bot";
+import { withSender, type VakansiyaBot } from "../bot";
 import { upsertUser } from "../db/users";
 
 export function registerStartCommand(bot: VakansiyaBot): void {
-  bot.command("start", async (ctx: BotContext) => {
-    if (ctx.from === undefined) {
-      await ctx.reply("İstifadəçi məlumatı oxunmadı. Zəhmət olmasa yenidən yoxlayın.");
-      return;
-    }
+  bot.command(
+    "start",
+    withSender(async (ctx) => {
+      await upsertUser(ctx.env.DB, {
+        telegramId: ctx.from.id,
+        username: ctx.from.username ?? null,
+      });
 
-    await upsertUser(ctx.env.DB, {
-      telegramId: ctx.from.id,
-      username: ctx.from.username ?? null,
-    });
-
-    await ctx.reply(
-      [
-        "Salam! Mən sizə ixtisasınıza uyğun yeni vakansiyaları göndərəcəyəm.",
-        "",
-        "Başlamaq üçün belə yazın:",
-        "/ixtisas backend developer",
-        "",
-        "İxtisası nə qədər dəqiq yazsanız, nəticələr bir o qədər dəqiq olur:",
-        '"musiqi müəllimi" yazsanız, fizika müəllimi vakansiyaları göndərilməyəcək.',
-        "",
-        "Komandalar üçün /komek yazın.",
-      ].join("\n"),
-    );
-  });
+      await ctx.reply(
+        [
+          "Salam! Mən sizə ixtisasınıza uyğun yeni vakansiyaları göndərəcəyəm.",
+          "",
+          "Başlamaq üçün belə yazın:",
+          "/ixtisas backend developer",
+          "",
+          "İxtisası nə qədər dəqiq yazsanız, nəticələr bir o qədər dəqiq olur:",
+          '"musiqi müəllimi" yazsanız, fizika müəllimi vakansiyaları göndərilməyəcək.',
+          "",
+          "Komandalar üçün /komek yazın.",
+        ].join("\n"),
+      );
+    }),
+  );
 }

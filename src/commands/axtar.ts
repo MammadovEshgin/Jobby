@@ -1,39 +1,37 @@
-import type { BotContext, VakansiyaBot } from "../bot";
+import { withSender, type BotContext, type VakansiyaBot } from "../bot";
 import { claimManualSearch } from "../db/manual-search";
 import { listFields } from "../db/users";
 import { MANUAL_SEARCH_LIMIT, runManualSearch } from "../pipeline/run";
 import { logError, logInfo } from "../utils/log";
 
 export function registerAxtarCommand(bot: VakansiyaBot): void {
-  bot.command("axtar", async (ctx: BotContext) => {
-    if (ctx.from === undefined) {
-      await ctx.reply("İstifadəçi məlumatı oxunmadı. Zəhmət olmasa yenidən yoxlayın.");
-      return;
-    }
+  bot.command(
+    "axtar",
+    withSender(async (ctx) => {
+      const telegramId = ctx.from.id;
+      const fields = await listFields(ctx.env.DB, telegramId);
 
-    const telegramId = ctx.from.id;
-    const fields = await listFields(ctx.env.DB, telegramId);
+      if (fields.length === 0) {
+        await ctx.reply("Axtarış üçün əvvəl ixtisas əlavə edin. Məsələn: /ixtisas musiqi müəllimi");
+        return;
+      }
 
-    if (fields.length === 0) {
-      await ctx.reply("Axtarış üçün əvvəl ixtisas əlavə edin. Məsələn: /ixtisas musiqi müəllimi");
-      return;
-    }
+      const limit = await claimManualSearch(ctx.env.DB, telegramId);
 
-    const limit = await claimManualSearch(ctx.env.DB, telegramId);
+      if (!limit.allowed) {
+        await ctx.reply(
+          `Manual axtarışı ${limit.retryAfterSeconds} saniyədən sonra yenidən işə sala bilərsiniz.`,
+        );
+        return;
+      }
 
-    if (!limit.allowed) {
-      await ctx.reply(
-        `Manual axtarışı ${limit.retryAfterSeconds} saniyədən sonra yenidən işə sala bilərsiniz.`,
-      );
-      return;
-    }
+      await ctx.reply("Axtarış başladı, bir az gözləyin...");
 
-    await ctx.reply("Axtarış başladı, bir az gözləyin...");
-
-    // The webhook must answer Telegram within seconds, so the search runs on
-    // after the response instead of inside it and reports its own result.
-    ctx.env.waitUntil(search(ctx, telegramId));
-  });
+      // The webhook must answer Telegram within seconds, so the search runs on
+      // after the response instead of inside it and reports its own result.
+      ctx.env.waitUntil(search(ctx, telegramId));
+    }),
+  );
 }
 
 async function search(ctx: BotContext, telegramId: number): Promise<void> {

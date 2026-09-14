@@ -12,7 +12,10 @@ const { listFields, fieldListKeyboard } = vi.hoisted(() => ({
 }));
 
 vi.mock("../../src/db/users", () => ({ listFields }));
-vi.mock("../../src/bot", () => ({ fieldListKeyboard }));
+vi.mock("../../src/bot", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../src/bot")>()),
+  fieldListKeyboard,
+}));
 
 function record(rawField: string, field: string): UserFieldRecord {
   return { telegramId: 42, field, rawField, createdAt: 0 };

@@ -33,7 +33,7 @@ export default {
 
   scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext): void {
     ctx.waitUntil(
-      runPipeline(env, { pruneOld: shouldPruneOldFingerprints(event.scheduledTime) })
+      runPipeline(env, { pruneOld: shouldPruneOldRows(event.scheduledTime) })
         .then((result) => {
           logInfo("pipeline_complete", result);
         })
@@ -44,7 +44,7 @@ export default {
   },
 };
 
-function shouldPruneOldFingerprints(scheduledTime: number): boolean {
+function shouldPruneOldRows(scheduledTime: number): boolean {
   const hour = Number(
     new Intl.DateTimeFormat("en-US", {
       timeZone: "Asia/Baku",

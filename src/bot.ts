@@ -40,13 +40,7 @@ export function createBot(env: BotEnv): VakansiyaBot {
 
   bot.callbackQuery(/^delete_field:(.+)$/, async (ctx) => {
     const telegramId = ctx.from.id;
-    const field = decodeURIComponent(ctx.match[1] ?? "");
-
-    if (field.length === 0) {
-      await ctx.answerCallbackQuery({ text: "Silinəcək ixtisas tapılmadı." });
-      return;
-    }
-
+    const field = decodeURIComponent(ctx.match[1]);
     const removed = await removeField(ctx.env.DB, telegramId, field);
     await ctx.answerCallbackQuery({ text: removed ? "İxtisas silindi." : "İxtisas tapılmadı." });
     await ctx.editMessageText(
@@ -89,4 +83,24 @@ export function fieldListKeyboard(
   }
 
   return added ? keyboard : undefined;
+}
+
+type SenderContext = BotContext & { from: NonNullable<BotContext["from"]> };
+
+/** For a command that acts on the sender's own data. A channel post has no sender and is told so. */
+export function withSender(
+  handler: (ctx: SenderContext) => Promise<void>,
+): (ctx: BotContext) => Promise<void> {
+  return async (ctx) => {
+    if (!hasSender(ctx)) {
+      await ctx.reply("İstifadəçi məlumatı oxunmadı. Zəhmət olmasa yenidən yoxlayın.");
+      return;
+    }
+
+    await handler(ctx);
+  };
+}
+
+function hasSender(ctx: BotContext): ctx is SenderContext {
+  return ctx.from !== undefined;
 }
