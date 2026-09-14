@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { listSnapshot, saveSnapshot } from "../../src/db/snapshot";
+import { listSnapshot, pruneSnapshotOlderThan, saveSnapshot } from "../../src/db/snapshot";
 import { listSentFingerprints, markManySent, pruneOlderThan } from "../../src/db/vacancies";
 import { createFakeDb } from "./fake-d1";
 
@@ -152,35 +152,72 @@ describe("pruneOlderThan", () => {
     );
   });
 
-  /**
-   * Known defect, locked here so a fix has to change this test on purpose:
-   * `first_seen` is the delivery date and never moves, while the snapshot's
-   * `seen_at` is refreshed every hour. A vacancy a board keeps listing past the
-   * window therefore loses its delivery record while still being open, and the
-   * next run sends it to the same user again.
-   */
-  it("forgets a delivery for a vacancy the board is still listing", async () => {
+  it("keeps the delivery of a vacancy the board is still listing", async () => {
     const { db, tables } = createFakeDb();
 
     await markManySent(db, [{ fingerprint: "a", telegramId: 7, source: "busy" }]);
 
     at(NOW + 61 * DAY);
-    await saveSnapshot(db, [
-      {
-        fingerprint: "a",
-        vacancy: {
+    await saveSnapshot(db, [listing("a")]);
+    await pruneOlderThan(db, 60);
+
+    await expect(listSentFingerprints(db, 7)).resolves.toEqual(new Set(["a"]));
+    expect(tables.sentVacancies).toEqual([
+      { fingerprint: "a", telegram_id: 7, first_seen: NOW + 61 * DAY, source: "busy" },
+    ]);
+  });
+
+  it("keeps the delivery through a gap longer than the snapshot remembers a vacancy", async () => {
+    const { db } = createFakeDb();
+
+    await markManySent(db, [{ fingerprint: "a", telegramId: 7, source: "busy" }]);
+    at(NOW + 50 * DAY);
+    await saveSnapshot(db, [listing("a")]);
+    at(NOW + 61 * DAY);
+    await pruneOlderThan(db, 60);
+    at(NOW + 65 * DAY);
+    await pruneSnapshotOlderThan(db, 14);
+
+    at(NOW + 100 * DAY);
+    await pruneOlderThan(db, 60);
+
+    await expect(listSnapshot(db, 7 * DAY)).resolves.toEqual([]);
+    await expect(listSentFingerprints(db, 7)).resolves.toEqual(new Set(["a"]));
+  });
+
+  it("forgets a delivery once the vacancy's last sighting is older than the window", async () => {
+    const { db, tables } = createFakeDb({
+      sentVacancies: [
+        { fingerprint: "a", telegram_id: 7, first_seen: NOW - 90 * DAY, source: "busy" },
+      ],
+      vacancySnapshot: [
+        {
+          fingerprint: "a",
           title: "Aşpaz",
           company: "Acme",
           location: "Bakı",
           url: "https://example.com/a",
           source: "busy",
+          posted_at: null,
+          seen_at: NOW - 70 * DAY,
         },
-      },
-    ]);
-    await pruneOlderThan(db, 60);
+      ],
+    });
 
+    await expect(pruneOlderThan(db, 60)).resolves.toBe(1);
     expect(tables.sentVacancies).toEqual([]);
-    await expect(listSentFingerprints(db, 7)).resolves.toEqual(new Set());
-    await expect(listSnapshot(db, 7 * DAY)).resolves.toHaveLength(1);
   });
 });
+
+function listing(fingerprint: string) {
+  return {
+    fingerprint,
+    vacancy: {
+      title: "Aşpaz",
+      company: "Acme",
+      location: "Bakı",
+      url: `https://example.com/${fingerprint}`,
+      source: "busy",
+    },
+  };
+}

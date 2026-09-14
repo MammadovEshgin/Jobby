@@ -213,15 +213,25 @@ describe("pruneSnapshotOlderThan", () => {
     expect(calls[0]?.params).toEqual([NOW - Math.floor(1.5 * DAY)]);
   });
 
-  /**
-   * Unlike `pruneOlderThan` in `vacancies.ts`, this one has no guard: a negative
-   * window puts the cutoff in the future and empties the table. Both call sites
-   * pass literals today, so the behaviour is locked rather than fixed here.
-   */
-  it("empties the table when the window is negative", async () => {
+  it("refuses a negative window and deletes nothing", async () => {
+    const { db, tables, calls } = createFakeDb({ vacancySnapshot: [storedRow("open", NOW)] });
+
+    await expect(pruneSnapshotOlderThan(db, -1)).rejects.toThrow(
+      "Days must be a non-negative number.",
+    );
+    expect(calls).toEqual([]);
+    expect(tables.vacancySnapshot).toHaveLength(1);
+  });
+
+  it("refuses a window that is not a finite number", async () => {
     const { db, tables } = createFakeDb({ vacancySnapshot: [storedRow("open", NOW)] });
 
-    await expect(pruneSnapshotOlderThan(db, -1)).resolves.toBe(1);
-    expect(tables.vacancySnapshot).toEqual([]);
+    await expect(pruneSnapshotOlderThan(db, Number.NaN)).rejects.toThrow(
+      "Days must be a non-negative number.",
+    );
+    await expect(pruneSnapshotOlderThan(db, Number.POSITIVE_INFINITY)).rejects.toThrow(
+      "Days must be a non-negative number.",
+    );
+    expect(tables.vacancySnapshot).toHaveLength(1);
   });
 });

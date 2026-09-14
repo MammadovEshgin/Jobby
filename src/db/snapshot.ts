@@ -1,5 +1,5 @@
 import type { RawVacancy } from "../scrapers/types";
-import { unixSeconds } from "./time";
+import { cutoffDaysAgo, unixSeconds } from "./time";
 
 /** A scraped vacancy plus the fingerprint used to deduplicate and track it. */
 export interface SnapshotVacancy {
@@ -100,7 +100,7 @@ export async function listSnapshot(
 
 /** Drops vacancies no source has listed for a while; they are almost certainly filled. */
 export async function pruneSnapshotOlderThan(db: D1Database, days: number): Promise<number> {
-  const cutoff = unixSeconds() - Math.floor(days * 24 * 60 * 60);
+  const cutoff = cutoffDaysAgo(days);
   const result = await db
     .prepare(
       `

@@ -1,4 +1,4 @@
-import { unixSeconds } from "./time";
+import { cutoffDaysAgo, unixSeconds } from "./time";
 
 export interface MarkSentInput {
   fingerprint: string;
@@ -48,21 +48,39 @@ export async function markManySent(
   );
 }
 
+/**
+ * Forgets deliveries of vacancies no board has listed within the window. The
+ * window runs from the latest sighting, not from the delivery: the snapshot
+ * forgets a vacancy soon after it stops being listed, so each prune first
+ * carries the sighting into `first_seen`. A vacancy still listed, or listed
+ * again after a scraper outage, is therefore never sent to the same user twice,
+ * and the table stays bounded by what boards listed within the window.
+ */
 export async function pruneOlderThan(db: D1Database, days: number): Promise<number> {
-  if (!Number.isFinite(days) || days < 0) {
-    throw new Error("Days must be a non-negative number.");
-  }
+  const cutoff = cutoffDaysAgo(days);
+  // One transaction, so a sighting saved between the two cannot be missed.
+  const [, deleted] = await db.batch([
+    db
+      .prepare(
+        `
+        UPDATE sent_vacancies
+        SET first_seen = vacancy_snapshot.seen_at
+        FROM vacancy_snapshot
+        WHERE vacancy_snapshot.fingerprint = sent_vacancies.fingerprint
+          AND sent_vacancies.first_seen < ?
+          AND sent_vacancies.first_seen < vacancy_snapshot.seen_at
+        `,
+      )
+      .bind(cutoff),
+    db
+      .prepare(
+        `
+        DELETE FROM sent_vacancies
+        WHERE first_seen < ?
+        `,
+      )
+      .bind(cutoff),
+  ]);
 
-  const cutoff = unixSeconds() - Math.floor(days * 24 * 60 * 60);
-  const result = await db
-    .prepare(
-      `
-      DELETE FROM sent_vacancies
-      WHERE first_seen < ?
-      `,
-    )
-    .bind(cutoff)
-    .run();
-
-  return result.meta.changes;
+  return deleted?.meta.changes ?? 0;
 }

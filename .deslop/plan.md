@@ -61,7 +61,7 @@ Orchestrator tasks for the Finish phase, not owned by any slice:
 | 2 | `src/matching` + `tests/match,normalize` | 6 | 1,355 | 6 | 8 | 0 | direct + strong (56) | done dc4c529 · fix 5f5b30a · net +2 prod · CC 6 → 6 · tests 56 → 71 |
 | 3 | `src/pipeline` + `tests/pipeline,format` | 4 | 624 | 8 | 9 | 0 | direct (13) | done b02d51e · fix ac2dffa · net +5 prod · CC 8 → 7 · tests 13 → 28 |
 | 4 | `src/commands` | 7 | 216 | 7 | 12 | 7 | none | done 2c45ffb · fix none (0 provable in scope) · net -2 prod · tests 0 → 33 |
-| 5 | `src/db` | 4 | 411 | 5 | 8 | 1 | none | done 4370349 · net -8 prod · tests 0 → 59 |
+| 5 | `src/db` | 4 | 411 | 5 | 8 | 1 | none | done 4370349 · fix PENDING7 · net -8 prod · tests 0 → 66 |
 | 6 | `src/utils` + `scripts` + `tests/fingerprint` | 5 | 211 | 7 | 6 | 0 | partial (1/3) | pending |
 | 7 | `src/bot.ts` + `src/index.ts` | 2 | 149 | 4 | 6 | 2 | none | pending |
 | 8 | `README.md`, `AGENTS.md`, `CODING_STANDARDS.md` | 3 | 298 | n/a | — | 0 | n/a | pending |
@@ -358,3 +358,34 @@ Documentation drift confirmed independently by two workers:
 - `UpsertUserInput`, `AddFieldInput`, `MarkSentInput`, `ManualSearchLimit` are exported with no
   outside importer, but each names a parameter or return type of an exported function, so
   un-exporting would make those signatures unnameable. Kept deliberately.
+
+### Slice 5 — audit findings
+
+Fixed (3, each proven red-first; the SQL predicates were additionally run on a real local D1,
+Miniflare/workerd SQLite, because the fake D1 cannot see them — not run against remote D1):
+- `vacancies.ts:59` **high** — a vacancy listed for over 60 days was re-sent to the same user.
+  Chosen fix: refresh `first_seen` from `vacancy_snapshot.seen_at` inside `pruneOlderThan`, in one
+  `db.batch` with the existing DELETE. The rejected alternative (prune only fingerprints absent
+  from the snapshot) re-sends every still-listed old vacancy after any scraper outage longer than
+  the snapshot's 14-day memory; a gap test fails under it. Bound: rows live only while delivered or
+  seen within 60 days. Trade-off: a vacancy re-posted under the same title and company while
+  continuously listed is never re-sent — consistent with precision-first. `first_seen` now means
+  "later of delivery and last sighting"; renaming it is a schema change.
+- `manual-search.ts:45` — new `claimManualSearch` does check-and-record in one conditional upsert
+  (`ON CONFLICT … DO UPDATE … WHERE excluded.last_run_at - last_run_at >= ?`). Real D1: exactly 1
+  of 10 concurrent claims won. **Production still raced until `axtar.ts` switched** — see the
+  follow-up commit after this one.
+- `snapshot.ts:102` — shared `cutoffDaysAgo` guard in `time.ts` for both prunes; negative or NaN
+  windows now refuse instead of deleting every row.
+
+Reported, needs a decision:
+- `users.ts:46` — `/ixtisas` on a user who sent `/stop` calls `upsertUser`, whose ON CONFLICT sets
+  `is_active = 1`: notifications resume silently, though `/stop`'s reply says only `/start`
+  re-enables them.
+- `/stop` is a soft delete; D1 does enforce the declared foreign keys, but nothing deletes a users
+  row, so a stopped user's username, fields and cooldown row are kept forever. Whether `/stop`
+  should erase data is the owner's call.
+- `users.ts:53` — no per-user field cap (same finding as slice 4).
+
+Verified, no finding: all 15 statements in `src/db` are `prepare(literal).bind(...)`; the
+`snapshot.ts:42` ON CONFLICT safely keeps the first title/company/source (real D1 confirmed).

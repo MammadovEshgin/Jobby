@@ -36,6 +36,39 @@ export async function checkManualSearchLimit(
   };
 }
 
+/**
+ * Checks the cooldown and starts the next one in a single conditional write, so
+ * two overlapping `/axtar` for one user cannot both pass. Calling
+ * `checkManualSearchLimit` and then `recordManualSearch` leaves a gap between
+ * the two round trips that both requests can slip through.
+ */
+export async function claimManualSearch(
+  db: D1Database,
+  telegramId: number,
+  cooldownSeconds = DEFAULT_COOLDOWN_SECONDS,
+): Promise<ManualSearchLimit> {
+  const claim = await db
+    .prepare(
+      `
+      INSERT INTO manual_search_log (telegram_id, last_run_at)
+      VALUES (?, ?)
+      ON CONFLICT(telegram_id) DO UPDATE SET
+        last_run_at = excluded.last_run_at
+      WHERE excluded.last_run_at - manual_search_log.last_run_at >= ?
+      `,
+    )
+    .bind(telegramId, unixSeconds(), cooldownSeconds)
+    .run();
+
+  if (claim.meta.changes > 0) {
+    return { allowed: true, retryAfterSeconds: 0 };
+  }
+
+  const { retryAfterSeconds } = await checkManualSearchLimit(db, telegramId, cooldownSeconds);
+
+  return { allowed: false, retryAfterSeconds };
+}
+
 export async function recordManualSearch(db: D1Database, telegramId: number): Promise<void> {
   await db
     .prepare(

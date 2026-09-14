@@ -3,8 +3,11 @@
  * behave as SQLite would, so a test asserts on the rows that end up stored and
  * on the bound parameters rather than on the wording of a statement.
  *
- * Statements are routed by verb plus table, the pair being unique across
- * `src/db`. An unrecognised pair throws instead of silently doing nothing.
+ * Statements are routed by verb plus table. The pair is unique across `src/db`
+ * except `INSERT manual_search_log`, whose handler tells the two writes apart by
+ * their bound values. An unrecognised pair throws instead of silently doing
+ * nothing. Predicates are modelled, not executed: a change inside a WHERE,
+ * ORDER BY or ON CONFLICT clause is invisible here.
  */
 
 interface UserRow {
@@ -340,16 +343,48 @@ function selectManualSearchLog(params: readonly unknown[], tables: Tables): Outc
   return { results, changes: 0 };
 }
 
+/** Carries a later snapshot sighting into `first_seen` for rows older than the cutoff. */
+function refreshSentVacancies(params: readonly unknown[], tables: Tables): Outcome {
+  const [cutoff] = params;
+  let changes = 0;
+
+  for (const row of tables.sentVacancies) {
+    const sighting = tables.vacancySnapshot.find((item) => item.fingerprint === row.fingerprint);
+
+    if (
+      sighting !== undefined &&
+      row.first_seen < Number(cutoff) &&
+      row.first_seen < sighting.seen_at
+    ) {
+      row.first_seen = sighting.seen_at;
+      changes += 1;
+    }
+  }
+
+  return { results: [], changes };
+}
+
+/**
+ * Serves both writes to this table. A third bound value is the claim's
+ * cooldown, standing in for its `DO UPDATE ... WHERE`: inside the cooldown the
+ * stored row is left alone and nothing changes.
+ */
 function insertManualSearchLog(params: readonly unknown[], tables: Tables): Outcome {
-  const [telegramId, lastRunAt] = params;
+  const [telegramId, lastRunAt, cooldown] = params;
   const id = Number(telegramId);
+  const runAt = Number(lastRunAt);
   const existing = tables.manualSearchLog.find((row) => row.telegram_id === id);
 
   if (existing === undefined) {
-    tables.manualSearchLog.push({ telegram_id: id, last_run_at: Number(lastRunAt) });
-  } else {
-    existing.last_run_at = Number(lastRunAt);
+    tables.manualSearchLog.push({ telegram_id: id, last_run_at: runAt });
+    return { results: [], changes: 1 };
   }
+
+  if (cooldown !== undefined && runAt - existing.last_run_at < Number(cooldown)) {
+    return { results: [], changes: 0 };
+  }
+
+  existing.last_run_at = runAt;
 
   return { results: [], changes: 1 };
 }
@@ -371,6 +406,7 @@ const handlers = new Map<string, Handler>([
   ["SELECT user_fields", selectUserFields],
   ["SELECT sent_vacancies", selectSentFingerprints],
   ["INSERT sent_vacancies", insertSentVacancy],
+  ["UPDATE sent_vacancies", refreshSentVacancies],
   ["DELETE sent_vacancies", deleteSentVacancies],
   ["INSERT vacancy_snapshot", insertSnapshot],
   ["SELECT vacancy_snapshot", selectSnapshot],

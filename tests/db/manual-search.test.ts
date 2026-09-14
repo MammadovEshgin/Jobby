@@ -1,6 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { checkManualSearchLimit, recordManualSearch } from "../../src/db/manual-search";
+import {
+  checkManualSearchLimit,
+  claimManualSearch,
+  recordManualSearch,
+} from "../../src/db/manual-search";
 import { createFakeDb } from "./fake-d1";
 
 const NOW = 1_700_000_000;
@@ -128,21 +132,60 @@ describe("the cooldown as a whole", () => {
     });
   });
 
-  /**
-   * Known defect, locked here so a fix has to change this test on purpose: the
-   * check and the record are two round trips with nothing between them, so two
-   * `/axtar` that overlap both read the same stored time and both pass.
-   */
-  it("lets two overlapping searches through", async () => {
-    const { db } = createFakeDb();
+  it("lets only one of two overlapping searches through", async () => {
+    const { db, tables } = createFakeDb();
 
-    const [first, second] = await Promise.all([
-      checkManualSearchLimit(db, 7),
-      checkManualSearchLimit(db, 7),
-    ]);
-    await recordManualSearch(db, 7);
+    const outcomes = await Promise.all([claimManualSearch(db, 7), claimManualSearch(db, 7)]);
 
-    expect(first?.allowed).toBe(true);
-    expect(second?.allowed).toBe(true);
+    expect(outcomes.filter((outcome) => outcome.allowed)).toHaveLength(1);
+    expect(tables.manualSearchLog).toEqual([{ telegram_id: 7, last_run_at: NOW }]);
+  });
+});
+
+describe("claimManualSearch", () => {
+  it("claims the slot for a user who has never searched", async () => {
+    const { db, tables } = createFakeDb();
+
+    await expect(claimManualSearch(db, 7)).resolves.toEqual({
+      allowed: true,
+      retryAfterSeconds: 0,
+    });
+    expect(tables.manualSearchLog).toEqual([{ telegram_id: 7, last_run_at: NOW }]);
+  });
+
+  it("refuses inside the cooldown, reports the wait and keeps the stored time", async () => {
+    const { db, tables } = createFakeDb({
+      manualSearchLog: [{ telegram_id: 7, last_run_at: NOW - 4 }],
+    });
+
+    await expect(claimManualSearch(db, 7)).resolves.toEqual({
+      allowed: false,
+      retryAfterSeconds: 6,
+    });
+    expect(tables.manualSearchLog).toEqual([{ telegram_id: 7, last_run_at: NOW - 4 }]);
+  });
+
+  it("claims the slot again exactly at the end of the cooldown", async () => {
+    const { db, tables } = createFakeDb({
+      manualSearchLog: [{ telegram_id: 7, last_run_at: NOW - 10 }],
+    });
+
+    await expect(claimManualSearch(db, 7)).resolves.toEqual({
+      allowed: true,
+      retryAfterSeconds: 0,
+    });
+    expect(tables.manualSearchLog).toEqual([{ telegram_id: 7, last_run_at: NOW }]);
+  });
+
+  it("binds the cooldown into the write itself", async () => {
+    const { db, calls } = createFakeDb({
+      manualSearchLog: [{ telegram_id: 7, last_run_at: NOW - 4 }],
+    });
+
+    await expect(claimManualSearch(db, 7, 60)).resolves.toEqual({
+      allowed: false,
+      retryAfterSeconds: 56,
+    });
+    expect(calls[0]).toEqual({ route: "INSERT manual_search_log", params: [7, NOW, 60] });
   });
 });
