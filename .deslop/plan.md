@@ -63,7 +63,7 @@ Orchestrator tasks for the Finish phase, not owned by any slice:
 | 4 | `src/commands` | 7 | 216 | 7 | 12 | 7 | none | done 2c45ffb · fix none (0 provable in scope) · net -2 prod · tests 0 → 33 |
 | 5 | `src/db` | 4 | 411 | 5 | 8 | 1 | none | done 4370349 · fix 77eaf30 + c915667 · net -8 prod · tests 0 → 66 |
 | 6 | `src/utils` + `scripts` + `tests/fingerprint` | 5 | 211 | 7 | 6 | 0 | partial (1/3) | done c4f3028 · fix 647e5ae · net -57 prod · CC 7 → 6 · tests 3 → 42 |
-| 7 | `src/bot.ts` + `src/index.ts` | 2 | 149 | 4 | 6 | 2 | none | done PENDING10 · CC 5 → 4 · tests 0 → 42 |
+| 7 | `src/bot.ts` + `src/index.ts` | 2 | 149 | 4 | 6 | 2 | none | done a9ea89f · fix PENDING11 · CC 5 → 4 · tests 0 → 42 |
 | 8 | `README.md`, `AGENTS.md`, `CODING_STANDARDS.md` | 3 | 298 | n/a | — | 0 | n/a | pending |
 
 ## Why this order
@@ -457,3 +457,17 @@ byte-identical; `/komek` unaffected).
   was a 500-and-redelivery loop.
 - `VakansiyaBot` type and the `VakansiyaBot/0.1` User-Agent still carry the pre-rename name.
 - `src/bot.ts` and `src/commands/*` import each other (safe at call time); structure decision.
+
+### Slice 7 — fixes (orchestrator, no audit worker)
+
+- **HIGH, fail-open error boundary** — `index.ts` now catches around the webhook, logs `bot_error`
+  with the handler's own error, and answers Telegram 200, so a failing handler no longer turns
+  into a 500 that Telegram redelivers. `bot.catch` was removed: under a webhook grammY never calls
+  it. Trade-off: if Telegram itself is unreachable during an update, that update is now dropped
+  after logging instead of redelivered.
+- **Delete-button ownership** — callback data is now `delete_field:<ownerId>:<field>`; a press
+  from anyone but the owner is answered with no text and deletes and edits nothing. Buttons sent
+  before this deploy use the old format and no longer match: pressing one does nothing until the
+  user runs `/ixtisaslar` again. The owner id costs 3+ bytes of the 64-byte limit, so a field
+  longer than ~48 encoded characters gets no button (it can still be removed with `/sil`).
+- Proof: 6 tests went red against the pre-fix source, then green.

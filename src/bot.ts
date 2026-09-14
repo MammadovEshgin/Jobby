@@ -38,10 +38,15 @@ export function createBot(env: BotEnv): VakansiyaBot {
   registerKomekCommand(bot);
   registerStopCommand(bot);
 
-  bot.callbackQuery(/^delete_field:(.+)$/, async (ctx) => {
-    const telegramId = ctx.from.id;
-    const field = decodeURIComponent(ctx.match[1]);
-    const removed = await removeField(ctx.env.DB, telegramId, field);
+  bot.callbackQuery(/^delete_field:(\d+):(.+)$/, async (ctx) => {
+    // In a group every member sees a list's buttons, so a press counts only from the list's owner.
+    if (ctx.from.id !== Number(ctx.match[1])) {
+      await ctx.answerCallbackQuery();
+      return;
+    }
+
+    const field = decodeURIComponent(ctx.match[2]);
+    const removed = await removeField(ctx.env.DB, ctx.from.id, field);
     await ctx.answerCallbackQuery({ text: removed ? "İxtisas silindi." : "İxtisas tapılmadı." });
     await ctx.editMessageText(
       removed ? "İxtisas silindi. Yenilənmiş siyahı üçün /ixtisaslar yazın." : "İxtisas tapılmadı.",
@@ -52,27 +57,17 @@ export function createBot(env: BotEnv): VakansiyaBot {
     await ctx.reply("Bu əmri tanımadım. Komandaların siyahısı üçün /komek yazın.");
   });
 
-  bot.catch((err) => {
-    console.error(
-      JSON.stringify({
-        event: "bot_error",
-        message: err.message,
-        stack: err.stack,
-      }),
-    );
-  });
-
   return bot;
 }
 
 export function fieldListKeyboard(
-  fields: readonly { field: string; rawField: string }[],
+  fields: readonly { telegramId: number; field: string; rawField: string }[],
 ): InlineKeyboard | undefined {
   const keyboard = new InlineKeyboard();
   let added = false;
 
   for (const field of fields) {
-    const data = `delete_field:${encodeURIComponent(field.field)}`;
+    const data = `delete_field:${field.telegramId}:${encodeURIComponent(field.field)}`;
 
     if (data.length > 64) {
       continue;

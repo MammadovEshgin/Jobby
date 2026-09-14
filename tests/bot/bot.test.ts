@@ -126,15 +126,25 @@ describe("delete buttons", () => {
     await deliver(privateMessage("/ixtisaslar"), db);
 
     expect(buttonRows(telegram.sent()[0])).toEqual([
-      [{ text: "Sil: Backend Developer", callback_data: "delete_field:backend%20developer" }],
-      [{ text: "Sil: musiqi müəllimi", callback_data: "delete_field:musiqi%20muellimi" }],
+      [
+        {
+          text: "Sil: Backend Developer",
+          callback_data: `delete_field:${SENDER.id}:backend%20developer`,
+        },
+      ],
+      [
+        {
+          text: "Sil: musiqi müəllimi",
+          callback_data: `delete_field:${SENDER.id}:musiqi%20muellimi`,
+        },
+      ],
     ]);
   });
 
   it("leaves out a button whose percent-encoded callback data passes Telegram's 64-byte limit", async () => {
-    // "delete_field:" is 13 bytes, so a 51-character ASCII field fills the limit exactly.
-    const fits = "a".repeat(51);
-    const tooLong = "a".repeat(52);
+    // "delete_field:42:" is 16 bytes, so a 48-character ASCII field fills the limit exactly.
+    const fits = "a".repeat(48);
+    const tooLong = "a".repeat(49);
     // 9 characters, but 54 bytes once percent-encoded.
     const tooLongEncoded = "ə".repeat(9);
     const { db } = fakeD1({ rows: [fieldRow(fits), fieldRow(tooLong), fieldRow(tooLongEncoded)] });
@@ -142,7 +152,7 @@ describe("delete buttons", () => {
     await deliver(privateMessage("/ixtisaslar"), db);
 
     expect(buttonRows(telegram.sent()[0])).toEqual([
-      [{ text: `Sil: ${fits}`, callback_data: `delete_field:${fits}` }],
+      [{ text: `Sil: ${fits}`, callback_data: `delete_field:${SENDER.id}:${fits}` }],
     ]);
   });
 
@@ -163,7 +173,7 @@ describe("delete buttons", () => {
   it("deletes the pressed field, answers the press and rewrites the list message", async () => {
     const { db, executed } = fakeD1({ changes: 1 });
 
-    await deliver(buttonPress("delete_field:backend%20developer"), db);
+    await deliver(buttonPress(`delete_field:${SENDER.id}:backend%20developer`), db);
 
     expect(executed).toEqual([
       {
@@ -186,7 +196,7 @@ describe("delete buttons", () => {
   it("says the field was not found when the press deleted nothing", async () => {
     const { db } = fakeD1({ changes: 0 });
 
-    await deliver(buttonPress("delete_field:backend%20developer"), db);
+    await deliver(buttonPress(`delete_field:${SENDER.id}:backend%20developer`), db);
 
     expect(telegram.sent()).toEqual([
       {
@@ -212,10 +222,10 @@ describe("delete buttons", () => {
     expect(pressed.executed.map((statement) => statement.values)).toEqual([[SENDER.id, field]]);
   });
 
-  it("ignores a button with no field after the prefix", async () => {
+  it("ignores a button with no field after the owner", async () => {
     const { db, executed } = fakeD1({ changes: 1 });
 
-    await deliver(buttonPress("delete_field:"), db);
+    await deliver(buttonPress(`delete_field:${SENDER.id}:`), db);
 
     expect(telegram.sent()).toEqual([]);
     expect(executed).toEqual([]);
@@ -224,39 +234,42 @@ describe("delete buttons", () => {
   it("rejects a button whose field is malformed percent-encoding, answering nothing", async () => {
     const { db, executed } = fakeD1({ changes: 1 });
 
-    await expect(deliver(buttonPress("delete_field:%E0%A4%A"), db)).rejects.toMatchObject({
+    await expect(
+      deliver(buttonPress(`delete_field:${SENDER.id}:%E0%A4%A`), db),
+    ).rejects.toMatchObject({
       error: expect.any(URIError),
     });
     expect(telegram.sent()).toEqual([]);
     expect(executed).toEqual([]);
   });
 
-  // Current, unguarded behaviour: the callback data names no owner.
-  it("lets another group member's press delete that member's own field and overwrite the list", async () => {
+  // In a group, the list's buttons are visible to everyone. Only the user whose list it is may
+  // press them; anyone else's press deletes nothing and leaves the list message alone.
+  it("refuses a press from anyone but the list's owner, deleting nothing and editing nothing", async () => {
     const stranger = { id: 999, is_bot: false, first_name: "Stranger" };
     const { db, executed } = fakeD1({ changes: 1 });
 
     await deliver(
-      buttonPress("delete_field:backend%20developer", { from: stranger, chat: GROUP_CHAT }),
+      buttonPress(`delete_field:${SENDER.id}:backend%20developer`, {
+        from: stranger,
+        chat: GROUP_CHAT,
+      }),
       db,
     );
 
-    expect(executed.map((statement) => statement.values)).toEqual([[999, "backend developer"]]);
-    expect(telegram.sent()).toContainEqual({
-      method: "editMessageText",
-      payload: { chat_id: GROUP_CHAT.id, message_id: 77, text: REMOVED },
-    });
+    expect(executed).toEqual([]);
+    expect(telegram.sent()).toEqual([
+      { method: "answerCallbackQuery", payload: { callback_query_id: "query-1" } },
+    ]);
   });
 });
 
 describe("errors", () => {
-  // Current behaviour: grammY consults bot.catch only when long polling, never from handleUpdate.
-  it("rejects the update when a handler fails, without writing bot.catch's log line", async () => {
-    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+  // handleUpdate still rejects; src/index.ts is the boundary that logs it and answers Telegram.
+  it("rejects the update when a handler fails, leaving the webhook boundary to answer it", async () => {
     const failure = new Error("D1 is down");
     const { db } = fakeD1({ failWith: failure });
 
     await expect(deliver(privateMessage("/stop"), db)).rejects.toMatchObject({ error: failure });
-    expect(consoleError).not.toHaveBeenCalledWith(expect.stringContaining('"event":"bot_error"'));
   });
 });

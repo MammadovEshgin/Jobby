@@ -211,20 +211,22 @@ describe("fetch", () => {
     expect(runManualSearch).toHaveBeenCalledWith(expect.objectContaining({ DB: db }), SENDER.id);
   });
 
-  // Current behaviour: webhookCallback awaits handleUpdate without catching, so the Worker answers
-  // 500 and Telegram redelivers the update.
-  it("rejects the response when a handler fails, without writing bot.catch's log line", async () => {
+  // webhookCallback never routes a handler failure to bot.catch. Left to reject, the Worker answered
+  // 500 and Telegram redelivered an update that fails the same way every time.
+  it("logs a failed handler and still answers Telegram 200, so the update is not redelivered", async () => {
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
     const failure = new Error("D1 is down");
 
-    const response = worker.fetch(
+    const response = await worker.fetch(
       webhook(privateMessage("/stop")),
       workerEnv(fakeD1({ failWith: failure }).db),
       new FakeExecutionContext(),
     );
 
-    await expect(response).rejects.toMatchObject({ error: failure });
-    expect(consoleError).not.toHaveBeenCalledWith(expect.stringContaining('"event":"bot_error"'));
+    expect(response.status).toBe(200);
+    expect(consoleError).toHaveBeenCalledWith(
+      JSON.stringify({ event: "bot_error", message: "D1 is down" }),
+    );
   });
 });
 

@@ -1,4 +1,4 @@
-import { webhookCallback } from "grammy/web";
+import { BotError, webhookCallback } from "grammy/web";
 
 import { createBot } from "./bot";
 import { runPipeline } from "./pipeline/run";
@@ -28,7 +28,14 @@ export default {
       onTimeout: "return",
     });
 
-    return await handleUpdate(request);
+    try {
+      return await handleUpdate(request);
+    } catch (error) {
+      // webhookCallback never routes a handler failure to bot.catch. A rejected fetch answers 500,
+      // and Telegram redelivers an update that fails the same way every time.
+      logError("bot_error", error instanceof BotError ? error.error : error);
+      return new Response(null, { status: 200 });
+    }
   },
 
   scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext): void {
