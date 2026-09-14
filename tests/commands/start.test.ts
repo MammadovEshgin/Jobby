@@ -3,11 +3,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { registerStartCommand } from "../../src/commands/start";
 import { FAKE_DB, UNKNOWN_USER_REPLY, commandHandler, fakeContext } from "./harness";
 
-const { upsertUser } = vi.hoisted(() => ({
+const { upsertUser, setActive } = vi.hoisted(() => ({
   upsertUser: vi.fn(async (): Promise<void> => undefined),
+  setActive: vi.fn(async (): Promise<void> => undefined),
 }));
 
-vi.mock("../../src/db/users", () => ({ upsertUser }));
+vi.mock("../../src/db/users", () => ({ upsertUser, setActive }));
 
 const WELCOME = `Salam! Mən sizə ixtisasınıza uyğun yeni vakansiyaları göndərəcəyəm.
 
@@ -24,13 +25,15 @@ describe("/start", () => {
     vi.clearAllMocks();
   });
 
-  it("registers the user and replies with the welcome text", async () => {
+  // /start is the only command that turns notifications back on; storing the user no longer does.
+  it("registers the user, turns notifications on and replies with the welcome text", async () => {
     const handler = commandHandler(registerStartCommand, "start");
     const { ctx, reply } = fakeContext({ from: { id: 42, username: "eshgin" }, text: "/start" });
 
     await handler(ctx);
 
     expect(upsertUser).toHaveBeenCalledWith(FAKE_DB, { telegramId: 42, username: "eshgin" });
+    expect(setActive).toHaveBeenCalledWith(FAKE_DB, 42, true);
     expect(reply).toHaveBeenCalledWith(WELCOME);
   });
 
@@ -51,5 +54,6 @@ describe("/start", () => {
 
     expect(reply).toHaveBeenCalledWith(UNKNOWN_USER_REPLY);
     expect(upsertUser).not.toHaveBeenCalled();
+    expect(setActive).not.toHaveBeenCalled();
   });
 });

@@ -1,5 +1,5 @@
 import { withSender, type VakansiyaBot } from "../bot";
-import { upsertUser } from "../db/users";
+import { setActive, upsertUser } from "../db/users";
 
 export function registerStartCommand(bot: VakansiyaBot): void {
   bot.command(
@@ -9,6 +9,8 @@ export function registerStartCommand(bot: VakansiyaBot): void {
         telegramId: ctx.from.id,
         username: ctx.from.username ?? null,
       });
+      // The only command that turns notifications back on after /stop.
+      await setActive(ctx.env.DB, ctx.from.id, true);
 
       await ctx.reply(
         [

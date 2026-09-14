@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { registerAxtarCommand } from "../../src/commands/axtar";
-import type { UserFieldRecord } from "../../src/db/users";
+import type { ActiveUserWithFields, UserFieldRecord } from "../../src/db/users";
 import { MANUAL_SEARCH_LIMIT } from "../../src/pipeline/run";
 import { FAKE_DB, UNKNOWN_USER_REPLY, commandHandler, fakeContext } from "./harness";
 
@@ -14,26 +14,29 @@ interface SearchResult {
   truncated: boolean;
 }
 
-const { claimManualSearch, listFields, runManualSearch, logError } = vi.hoisted(() => ({
-  claimManualSearch: vi.fn(async (): Promise<{ allowed: boolean; retryAfterSeconds: number }> => ({
-    allowed: true,
-    retryAfterSeconds: 0,
-  })),
-  listFields: vi.fn(async (): Promise<UserFieldRecord[]> => []),
-  runManualSearch: vi.fn(async (): Promise<SearchResult> => ({
-    scraped: 0,
-    deduped: 0,
-    usersChecked: 1,
-    messagesSent: 0,
-    vacanciesSent: 0,
-    truncated: false,
-  })),
-  logError: vi.fn((): void => undefined),
-  logInfo: vi.fn((): void => undefined),
-}));
+const { claimManualSearch, listFields, listActiveUsersWithFields, runManualSearch, logError } =
+  vi.hoisted(() => ({
+    claimManualSearch: vi.fn(
+      async (): Promise<{ allowed: boolean; retryAfterSeconds: number }> => ({
+        allowed: true,
+        retryAfterSeconds: 0,
+      }),
+    ),
+    listFields: vi.fn(async (): Promise<UserFieldRecord[]> => []),
+    listActiveUsersWithFields: vi.fn(async (): Promise<ActiveUserWithFields[]> => []),
+    runManualSearch: vi.fn(async (): Promise<SearchResult> => ({
+      scraped: 0,
+      deduped: 0,
+      usersChecked: 1,
+      messagesSent: 0,
+      vacanciesSent: 0,
+      truncated: false,
+    })),
+    logError: vi.fn((): void => undefined),
+  }));
 
 vi.mock("../../src/db/manual-search", () => ({ claimManualSearch }));
-vi.mock("../../src/db/users", () => ({ listFields }));
+vi.mock("../../src/db/users", () => ({ listFields, listActiveUsersWithFields }));
 vi.mock("../../src/utils/log", () => ({ logError, logInfo: vi.fn() }));
 vi.mock("../../src/pipeline/run", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../src/pipeline/run")>();
@@ -56,10 +59,13 @@ const FOLLOWED: UserFieldRecord[] = [
   { telegramId: 55, field: "backend developer", rawField: "Backend Developer", createdAt: 0 },
 ];
 
+const ACTIVE: ActiveUserWithFields[] = [{ telegramId: 55, username: null, fields: FOLLOWED }];
+
 describe("/axtar", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     listFields.mockResolvedValue(FOLLOWED);
+    listActiveUsersWithFields.mockResolvedValue(ACTIVE);
     claimManualSearch.mockResolvedValue({ allowed: true, retryAfterSeconds: 0 });
     runManualSearch.mockResolvedValue(searchResult());
   });
@@ -83,6 +89,23 @@ describe("/axtar", () => {
 
     expect(reply).toHaveBeenCalledWith(
       "Axtarış üçün əvvəl ixtisas əlavə edin. Məsələn: /ixtisas musiqi müəllimi",
+    );
+    expect(claimManualSearch).not.toHaveBeenCalled();
+    expect(waitUntil).not.toHaveBeenCalled();
+  });
+
+  // A stopped user's search used to burn the cooldown and run to nothing, and with no stored scrape
+  // it fell back to scraping every board live.
+  it("refuses a user who stopped notifications, claiming no cooldown and searching nothing", async () => {
+    listActiveUsersWithFields.mockResolvedValue([]);
+    const handler = commandHandler(registerAxtarCommand, "axtar");
+    const { ctx, reply, waitUntil } = fakeContext({ from: { id: 55 }, text: "/axtar" });
+
+    await handler(ctx);
+
+    expect(listActiveUsersWithFields).toHaveBeenCalledWith(FAKE_DB, 55);
+    expect(reply).toHaveBeenCalledWith(
+      "Bildirişlər dayandırılıb. Axtarış etmək üçün əvvəlcə /start yazın.",
     );
     expect(claimManualSearch).not.toHaveBeenCalled();
     expect(waitUntil).not.toHaveBeenCalled();

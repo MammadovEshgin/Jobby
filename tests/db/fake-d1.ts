@@ -163,7 +163,6 @@ function insertUser(params: readonly unknown[], tables: Tables): Outcome {
     });
   } else {
     existing.username = nullableText(username);
-    existing.is_active = 1;
   }
 
   return { results: [], changes: 1 };
@@ -205,11 +204,20 @@ function selectActiveUsersWithFields(params: readonly unknown[], tables: Tables)
   return { results: joined, changes: 0 };
 }
 
+/**
+ * A sixth bound value is the per-user limit, standing in for the INSERT's WHERE: a field the user
+ * does not follow yet is refused once they already follow that many.
+ */
 function insertUserField(params: readonly unknown[], tables: Tables): Outcome {
-  const [telegramId, field, rawField, createdAt] = params;
+  const [telegramId, field, rawField, createdAt, , limit] = params;
   const id = Number(telegramId);
   const name = text(field);
   const existing = tables.userFields.find((row) => row.telegram_id === id && row.field === name);
+  const followed = tables.userFields.filter((row) => row.telegram_id === id).length;
+
+  if (existing === undefined && limit !== undefined && followed >= Number(limit)) {
+    return { results: [], changes: 0 };
+  }
 
   if (existing === undefined) {
     tables.userFields.push({

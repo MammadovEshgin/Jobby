@@ -45,7 +45,9 @@ describe("upsertUser", () => {
     expect(calls[0]?.params).toEqual([7, null, NOW]);
   });
 
-  it("refreshes the username and reactivates without moving created_at", async () => {
+  // Only /start turns notifications back on. Storing a user used to reactivate them as a side
+  // effect, so /ixtisas after /stop resumed notifications without saying so.
+  it("refreshes the username but leaves a stopped user stopped, without moving created_at", async () => {
     const { db, tables } = createFakeDb({
       users: [{ telegram_id: 7, username: "old", created_at: 1, is_active: 0 }],
     });
@@ -54,7 +56,7 @@ describe("upsertUser", () => {
     await upsertUser(db, { telegramId: 7, username: "new" });
 
     expect(tables.users).toEqual([
-      { telegram_id: 7, username: "new", created_at: 1, is_active: 1 },
+      { telegram_id: 7, username: "new", created_at: 1, is_active: 0 },
     ]);
   });
 
@@ -123,7 +125,58 @@ describe("addField", () => {
 
     expect(tables.userFields).toHaveLength(2);
   });
+
+  it("reports that the field was stored", async () => {
+    const { db } = createFakeDb();
+
+    await expect(addField(db, { telegramId: 7, field: "aspaz", rawField: "Aşpaz" })).resolves.toBe(
+      true,
+    );
+  });
+
+  it("refuses a new field once the user follows 20, storing nothing", async () => {
+    const { db, tables } = createFakeDb({ userFields: followedFields(7, 20) });
+
+    await expect(addField(db, { telegramId: 7, field: "yeni", rawField: "Yeni" })).resolves.toBe(
+      false,
+    );
+    expect(tables.userFields).toHaveLength(20);
+  });
+
+  it("still updates a field the user already follows when at the limit", async () => {
+    const { db, tables } = createFakeDb({ userFields: followedFields(7, 20) });
+
+    await expect(
+      addField(db, { telegramId: 7, field: "field 0", rawField: "Field 0!" }),
+    ).resolves.toBe(true);
+    expect(tables.userFields.find((row) => row.field === "field 0")?.raw_field).toBe("Field 0!");
+  });
+
+  it("counts only the user's own fields toward the limit", async () => {
+    const { db } = createFakeDb({ userFields: followedFields(8, 20) });
+
+    await expect(addField(db, { telegramId: 7, field: "aspaz", rawField: "Aşpaz" })).resolves.toBe(
+      true,
+    );
+  });
+
+  it("binds the limit into the write itself", async () => {
+    const { db, calls } = createFakeDb();
+
+    await addField(db, { telegramId: 7, field: "aspaz", rawField: "Aşpaz" });
+
+    expect(calls[0]?.params).toEqual([7, "aspaz", "Aşpaz", NOW, 7, 20, 7, "aspaz"]);
+  });
 });
+
+function followedFields(telegramId: number, count: number) {
+  return Array.from({ length: count }, (_, index) => ({
+    telegram_id: telegramId,
+    field: `field ${index}`,
+    raw_field: `Field ${index}`,
+    created_at: index,
+  }));
+}
 
 describe("removeField", () => {
   it("reports the deletion and drops the row", async () => {

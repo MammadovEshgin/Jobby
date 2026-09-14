@@ -1,6 +1,6 @@
 import { withSender, type BotContext, type VakansiyaBot } from "../bot";
 import { claimManualSearch } from "../db/manual-search";
-import { listFields } from "../db/users";
+import { listActiveUsersWithFields, listFields } from "../db/users";
 import { MANUAL_SEARCH_LIMIT, runManualSearch } from "../pipeline/run";
 import { logError, logInfo } from "../utils/log";
 
@@ -13,6 +13,15 @@ export function registerAxtarCommand(bot: VakansiyaBot): void {
 
       if (fields.length === 0) {
         await ctx.reply("Axtarış üçün əvvəl ixtisas əlavə edin. Məsələn: /ixtisas musiqi müəllimi");
+        return;
+      }
+
+      // A stopped user's search would run to nothing, and with no stored scrape it would scrape
+      // every board live, so it is refused before the cooldown is claimed.
+      const active = await listActiveUsersWithFields(ctx.env.DB, telegramId);
+
+      if (active.length === 0) {
+        await ctx.reply("Bildirişlər dayandırılıb. Axtarış etmək üçün əvvəlcə /start yazın.");
         return;
       }
 
