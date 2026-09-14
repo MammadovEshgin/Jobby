@@ -15,9 +15,7 @@
 export default [
   {
     rules: {
-      // RATCHET: the budget is 10; 11 is the current maximum in the scrapers.
-      // See CODING_STANDARDS.md. Lower to 10 once those three are split.
-      complexity: ["error", { max: 11 }],
+      complexity: ["error", { max: 10 }],
       "max-depth": ["error", 3],
       "max-params": ["error", 4],
       "max-lines-per-function": ["warn", { max: 50, skipBlankLines: true, skipComments: true }],

@@ -12,7 +12,7 @@
     "check:fast": "npm run lint && npm run typecheck",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "lint": "eslint . --max-warnings 11",
+    "lint": "eslint . --max-warnings 7",
     "lint:fix": "eslint . --fix",
     "typecheck": "tsc --noEmit && tsc --noEmit -p scripts/tsconfig.json",
     "knip": "knip",

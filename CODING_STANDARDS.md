@@ -9,7 +9,7 @@ review, so keep it short and delete lines once tooling enforces them.
 - Language and runtime: TypeScript on Cloudflare Workers (`wrangler`), D1 for storage, grammY for
   the Telegram bot. Node 20+ for the tooling only.
 - Formatter: Prettier (`npm run format`; runs automatically on every edit, never hand-format)
-- Linter: ESLint flat config (complexity 11, depth 3, params 4, typed `no-unsafe-*`, dead code,
+- Linter: ESLint flat config (complexity 10, depth 3, params 4, typed `no-unsafe-*`, dead code,
   `eslint-plugin-security`; see `eslint.config.mjs` and `eslint.clean-code.mjs`)
 - Typecheck: `tsc --noEmit` over `tsconfig.json` (src + tests) and `scripts/tsconfig.json`
 - Tests: Vitest (`npm test`), parser tests drive real fixture HTML/JSON from `tests/fixtures/`
@@ -23,11 +23,17 @@ review, so keep it short and delete lines once tooling enforces them.
   `RawVacancy[]`. Fetching lives in `fetchText`, so parsers stay synchronous and testable.
 - A scraper never throws on bad input. Unparseable or non-matching markup returns `[]`; one dead
   source must not take the hourly run down with it.
-- Console output is one JSON object per line. Prefer `src/utils/log.ts` (`logInfo` / `logError`);
-  `bot.catch` in `src/bot.ts` builds its own because it also records the stack. `console.log` is
-  linted out everywhere except `src/utils/log.ts`; `warn` and `error` are allowed.
+- Console output is one JSON object per line, through `src/utils/log.ts` (`logInfo` / `logError`).
+  `console.log` is linted out everywhere else; `warn` and `error` are allowed.
+- A failing bot handler is caught in `src/index.ts`, logged as `bot_error`, and answered 200.
+  grammY never calls `bot.catch` under a webhook, so do not rely on it.
 - Lexicon terms are stored in their shortest canonical form. Azerbaijani is agglutinative and the
   analyzer strips suffixes by walking prefixes, so an inflected entry is unreachable.
+- Precision beats recall: a vacancy offered to a user who follows nothing like it is a bug, not a
+  threshold to tune. Fix it with a failing test that locks the property (see the technology versus
+  non-technology sweep in `tests/match.test.ts`), not only the reported title.
+- `fingerprint()` output is stored in D1 as the identity of every delivered vacancy. Changing it by
+  one byte re-sends everything to everyone; `tests/utils/fingerprint.test.ts` holds golden hashes.
 
 ## Boundaries
 
@@ -39,6 +45,9 @@ review, so keep it short and delete lines once tooling enforces them.
   before that check.
 - Secrets (`BOT_TOKEN`, `WEBHOOK_SECRET`) arrive through the Worker `Env` binding. Nothing reads
   `process.env` outside `scripts/`.
+- Only an `http:` or `https:` URL from a board becomes a link in a delivered message.
+- An inline button that changes a user's data carries its owner's id; a press from anyone else
+  changes nothing.
 
 ## Layout
 
@@ -54,32 +63,30 @@ tsconfig (Node types, not Workers types).
 
 Thresholds temporarily above the skill's budget. Delete the line when the target is reached.
 
-- complexity: ceiling 11, target 10. Three parsers sit at 11 — `parseJobSearchAzVacancies`
-  (`src/scrapers/jobsearch-az.ts:25`), `parseSmartJobAzVacancies` (`src/scrapers/smartjob-az.ts:42`),
-  `parseVakansiyaAzVacancies` (`src/scrapers/vakansiya-az.ts:26`). Each is one field-extraction
-  chain; splitting the field guards out drops them under 10.
-- lint warnings: `--max-warnings 11`, target 0. These are the pre-existing
-  `eslint-plugin-security` findings below. Lower the number as each is closed; never raise it.
+- lint warnings: `--max-warnings 7`, target 0. These are the pre-existing `eslint-plugin-security`
+  findings below. Lower the number as each is closed; never raise it.
 
 ## Pre-existing security findings
 
-Listed for `/audit`, not suppressed. The lint gate holds the count at 11 so no new one can appear.
+Listed for `/audit`, not suppressed. Each was assessed as noise during the 2026-09 cleanup; the
+lint gate holds the count so no new one can appear.
 
-- `security/detect-object-injection` (7): `src/matching/analyze.ts:51,55,56,122`,
-  `src/matching/normalize.ts:21`, `src/scrapers/busy-az.ts:54`, `src/scrapers/hellojob-az.ts:41`,
-  `src/scrapers/vakansiya-biz.ts:42`. Each is an array or record read keyed by a loop counter or an
-  internal id, not by user input — but the rule cannot see that, so confirm before closing.
-- `security/detect-non-literal-regexp` (2): `src/commands/ixtisas.ts:41`, `src/commands/sil.ts:25`.
-  The pattern is built from a hardcoded command name, not from the message text.
-- `security/detect-possible-timing-attacks` (1): `src/matching/analyze.ts:74`. A word-equality
-  check in the matcher; no secret is involved.
+- `security/detect-object-injection` (5): `src/matching/analyze.ts:53,57,58,132` read an array at a
+  counter the function itself advances; `src/matching/normalize.ts:37` reads a diacritics map whose
+  keys were enumerated against its regex class, so no prototype key is reachable.
+- `security/detect-non-literal-regexp` (1): `src/commands/argument.ts:3` builds the pattern from a
+  hardcoded command name; it has no nested quantifier, so it cannot backtrack badly.
+- `security/detect-possible-timing-attacks` (1): `src/matching/analyze.ts:76` compares two
+  job-title words; no secret is involved.
 
 ## Rules from mistakes
 
 - 2026-09-11: `Response.json()` in workers-types is generic. Write `await response.json<T>()`, not
   `(await response.json()) as T` — the assertion is a no-op the linter rejects.
-- 2026-09-11: `export` only what another module imports. Three exports (`conceptKind`,
-  `SNAPSHOT_MAX_AGE_SECONDS`, `scrapers`) had no caller outside their own file; `npm run knip`
-  catches this.
+- 2026-09-11: `export` only what another module imports; `npm run knip` catches the rest.
 - 2026-09-11: The `scheduled` handler must not be `async` when its body only calls
   `ctx.waitUntil()` — awaiting nothing while claiming a Promise return hides the fire-and-forget.
+- 2026-09-11: Punctuation can be the name. Stripping it turned `c#` into the letter `c`, and every
+  title with a stray C matched users following C#. `normalize` folds `c#`, `c++` and `f#` first.
+- 2026-09-11: Check-then-write across two D1 round trips is a race. Enforce a limit inside one
+  conditional write (`claimManualSearch`), and delete the separate write so it cannot be rebuilt.
