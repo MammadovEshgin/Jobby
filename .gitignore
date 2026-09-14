@@ -26,5 +26,8 @@ coverage/
 # TypeScript build info
 *.tsbuildinfo
 
-# AI tooling
-.claude/
+# AI tooling — the shared hooks and settings are committed; personal overrides are not.
+.claude/*
+!.claude/settings.json
+!.claude/hooks/
+.claude/settings.local.json

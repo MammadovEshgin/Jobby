@@ -1,14 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { MANUAL_SEARCH_LIMIT, runManualSearch, runPipeline } from "../src/pipeline/run";
-import type { RawVacancy } from "../src/scrapers/types";
+import { MANUAL_SEARCH_LIMIT, runManualSearch, runPipeline } from "../../src/pipeline/run";
+import type { RawVacancy } from "../../src/scrapers/types";
 
 const { vacancies, scrapeCalls } = vi.hoisted(() => ({
   vacancies: { current: [] as RawVacancy[] },
   scrapeCalls: { count: 0 },
 }));
 
-vi.mock("../src/scrapers", () => ({
+vi.mock("../../src/scrapers", () => ({
   fetchAllVacancies: async () => {
     scrapeCalls.count += 1;
     return vacancies.current;
@@ -37,7 +37,7 @@ interface SnapshotRow {
 }
 
 /** Just enough of D1 for the pipeline: users, their fields, sent ids and the snapshot. */
-function fakeDb(fields: string[]): D1Database {
+function fakeDb(fields: string[], options: { failOn?: string } = {}): D1Database {
   const sent = new Set<string>();
   const snapshot = new Map<string, SnapshotRow>();
 
@@ -71,6 +71,10 @@ function fakeDb(fields: string[]): D1Database {
         return null;
       },
       async run() {
+        if (options.failOn !== undefined && sql.includes(options.failOn)) {
+          throw new Error(`D1 rejected: ${options.failOn}`);
+        }
+
         if (sql.includes("INSERT INTO sent_vacancies")) {
           sent.add(String(values[0]));
         }
@@ -98,10 +102,22 @@ function fakeDb(fields: string[]): D1Database {
     prepare: (sql: string) => statement(sql),
     async batch(statements: D1PreparedStatement[]) {
       return await Promise.all(
-        statements.map(async (item) => await (item as unknown as { run: () => Promise<unknown> }).run()),
+        statements.map(
+          async (item) => await (item as unknown as { run: () => Promise<unknown> }).run(),
+        ),
       );
     },
   } as unknown as D1Database;
+}
+
+/** Telegram's 429 body; `retry_after: 0` keeps the retry wait out of the test's runtime. */
+function rateLimited(): Response {
+  return new Response(JSON.stringify({ parameters: { retry_after: 0 } }), { status: 429 });
+}
+
+/** The vacancy titles a rendered message actually carries. */
+function titlesIn(message: string): string[] {
+  return [...message.matchAll(/<b>(Musiqi müəllimi \d+)<\/b>/gu)].map(([, title]) => title ?? "");
 }
 
 function sentMessages(): string[] {
@@ -141,6 +157,22 @@ describe("runPipeline", () => {
     expect(message).not.toContain("Backend Developer");
   });
 
+  it("puts the tightest match first in the message", async () => {
+    vacancies.current = [
+      vacancy("Musiqi müəllimi Bakı filialı", "Beta"),
+      vacancy("Musiqi müəllimi"),
+    ];
+
+    await runPipeline({ DB: fakeDb(["musiqi muellimi"]), BOT_TOKEN: "token" });
+    const [message = ""] = sentMessages();
+
+    expect(message).toContain("<b>Musiqi müəllimi</b>");
+    expect(message).toContain("<b>Musiqi müəllimi Bakı filialı</b>");
+    expect(message.indexOf("<b>Musiqi müəllimi</b>")).toBeLessThan(
+      message.indexOf("<b>Musiqi müəllimi Bakı filialı</b>"),
+    );
+  });
+
   it("sends nothing when no vacancy matches", async () => {
     vacancies.current = [vacancy("Fizika müəllimi"), vacancy("Ofisiant")];
 
@@ -174,6 +206,61 @@ describe("runPipeline", () => {
     expect(second.vacanciesSent).toBe(0);
   });
 
+  it("sends a vacancy once when two sources list it", async () => {
+    vacancies.current = [
+      vacancy("Musiqi müəllimi"),
+      { ...vacancy("Musiqi müəllimi"), source: "other", url: "https://other.example/1" },
+    ];
+
+    const result = await runPipeline({ DB: fakeDb(["musiqi muellimi"]), BOT_TOKEN: "token" });
+
+    expect(result.scraped).toBe(2);
+    expect(result.deduped).toBe(1);
+    expect(result.vacanciesSent).toBe(1);
+  });
+
+  it("retries a rate-limited send and delivers on the next attempt", async () => {
+    vacancies.current = [vacancy("Musiqi müəllimi")];
+    vi.mocked(globalThis.fetch).mockResolvedValueOnce(rateLimited());
+
+    const result = await runPipeline({ DB: fakeDb(["musiqi muellimi"]), BOT_TOKEN: "token" });
+
+    expect(globalThis.fetch).toHaveBeenCalledTimes(2);
+    expect(result.vacanciesSent).toBe(1);
+  });
+
+  it("caps the wait between rate-limited attempts at five seconds", async () => {
+    vacancies.current = [vacancy("Musiqi müəllimi")];
+    vi.mocked(globalThis.fetch).mockResolvedValueOnce(
+      new Response(JSON.stringify({ parameters: { retry_after: 600 } }), { status: 429 }),
+    );
+
+    const waits: number[] = [];
+    const schedule = globalThis.setTimeout;
+    vi.stubGlobal("setTimeout", (handler: () => void, ms: number) => {
+      waits.push(ms);
+      return schedule(handler, 0);
+    });
+
+    const result = await runPipeline({ DB: fakeDb(["musiqi muellimi"]), BOT_TOKEN: "token" });
+
+    expect(waits).toEqual([5000]);
+    expect(result.vacanciesSent).toBe(1);
+  });
+
+  it("gives up on a chat that stays rate limited", async () => {
+    vacancies.current = [vacancy("Musiqi müəllimi")];
+    vi.mocked(globalThis.fetch)
+      .mockResolvedValueOnce(rateLimited())
+      .mockResolvedValueOnce(rateLimited())
+      .mockResolvedValueOnce(rateLimited());
+
+    const result = await runPipeline({ DB: fakeDb(["musiqi muellimi"]), BOT_TOKEN: "token" });
+
+    expect(globalThis.fetch).toHaveBeenCalledTimes(3);
+    expect(result.vacanciesSent).toBe(0);
+  });
+
   it("keeps delivering to other users when one chat rejects the message", async () => {
     vacancies.current = [vacancy("Musiqi müəllimi")];
     vi.mocked(globalThis.fetch).mockResolvedValueOnce(new Response("{}", { status: 403 }));
@@ -181,6 +268,60 @@ describe("runPipeline", () => {
     const result = await runPipeline({ DB: fakeDb(["musiqi muellimi"]), BOT_TOKEN: "token" });
 
     expect(result.vacanciesSent).toBe(0);
+  });
+
+  it("does not resend the vacancies of a message that already landed", async () => {
+    vacancies.current = Array.from({ length: 60 }, (_, index) =>
+      vacancy(`Musiqi müəllimi ${index}`, `Company ${index}`),
+    );
+    vi.mocked(globalThis.fetch)
+      .mockResolvedValueOnce(new Response("{}", { status: 200 }))
+      .mockResolvedValueOnce(new Response("{}", { status: 403 }));
+
+    const db = fakeDb(["musiqi muellimi"]);
+    await runPipeline({ DB: db, BOT_TOKEN: "token" });
+    const landed = titlesIn(sentMessages()[0] ?? "");
+    vi.mocked(globalThis.fetch).mockClear();
+
+    await runPipeline({ DB: db, BOT_TOKEN: "token" });
+    const resent = sentMessages().join("\n");
+
+    expect(landed.length).toBeGreaterThan(0);
+    expect(landed.some((title) => resent.includes(`<b>${title}</b>`))).toBe(false);
+  });
+
+  it("keeps the run alive when the sent-vacancy write fails", async () => {
+    vacancies.current = [vacancy("Musiqi müəllimi")];
+
+    const result = await runPipeline({
+      DB: fakeDb(["musiqi muellimi"], { failOn: "INSERT INTO sent_vacancies" }),
+      BOT_TOKEN: "token",
+    });
+
+    expect(result.usersChecked).toBe(1);
+    expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("still delivers when the snapshot write fails", async () => {
+    vacancies.current = [vacancy("Musiqi müəllimi")];
+
+    const result = await runPipeline({
+      DB: fakeDb(["musiqi muellimi"], { failOn: "INSERT INTO vacancy_snapshot" }),
+      BOT_TOKEN: "token",
+    });
+
+    expect(result.vacanciesSent).toBe(1);
+  });
+
+  it("still delivers when the nightly prune fails", async () => {
+    vacancies.current = [vacancy("Musiqi müəllimi")];
+
+    const result = await runPipeline(
+      { DB: fakeDb(["musiqi muellimi"], { failOn: "DELETE FROM" }), BOT_TOKEN: "token" },
+      { pruneOld: true },
+    );
+
+    expect(result.vacanciesSent).toBe(1);
   });
 });
 
@@ -201,7 +342,10 @@ describe("runManualSearch", () => {
   it("scrapes once when no snapshot exists yet", async () => {
     vacancies.current = [vacancy("Musiqi müəllimi")];
 
-    const manual = await runManualSearch({ DB: fakeDb(["musiqi muellimi"]), BOT_TOKEN: "token" }, 1);
+    const manual = await runManualSearch(
+      { DB: fakeDb(["musiqi muellimi"]), BOT_TOKEN: "token" },
+      1,
+    );
 
     expect(scrapeCalls.count).toBe(1);
     expect(manual.vacanciesSent).toBe(1);
@@ -223,7 +367,10 @@ describe("runManualSearch", () => {
       vacancy(`Musiqi müəllimi ${index}`, `Company ${index}`),
     );
 
-    const manual = await runManualSearch({ DB: fakeDb(["musiqi muellimi"]), BOT_TOKEN: "token" }, 1);
+    const manual = await runManualSearch(
+      { DB: fakeDb(["musiqi muellimi"]), BOT_TOKEN: "token" },
+      1,
+    );
 
     expect(manual.vacanciesSent).toBe(MANUAL_SEARCH_LIMIT);
     expect(manual.truncated).toBe(true);

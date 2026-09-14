@@ -1,38 +1,46 @@
-import type { BotContext, VakansiyaBot } from "../bot";
-import { checkManualSearchLimit, recordManualSearch } from "../db/manual-search";
-import { listFields } from "../db/users";
+import { withSender, type BotContext, type JobbyBot } from "./context";
+import { claimManualSearch } from "../db/manual-search";
+import { listActiveUsersWithFields, listFields } from "../db/users";
 import { MANUAL_SEARCH_LIMIT, runManualSearch } from "../pipeline/run";
 import { logError, logInfo } from "../utils/log";
 
-export function registerAxtarCommand(bot: VakansiyaBot): void {
-  bot.command("axtar", async (ctx: BotContext) => {
-    if (ctx.from === undefined) {
-      await ctx.reply("İstifadəçi məlumatı oxunmadı. Zəhmət olmasa yenidən yoxlayın.");
-      return;
-    }
+export function registerAxtarCommand(bot: JobbyBot): void {
+  bot.command(
+    "axtar",
+    withSender(async (ctx) => {
+      const telegramId = ctx.from.id;
+      const fields = await listFields(ctx.env.DB, telegramId);
 
-    const telegramId = ctx.from.id;
-    const fields = await listFields(ctx.env.DB, telegramId);
+      if (fields.length === 0) {
+        await ctx.reply("Axtarış üçün əvvəl ixtisas əlavə edin. Məsələn: /ixtisas musiqi müəllimi");
+        return;
+      }
 
-    if (fields.length === 0) {
-      await ctx.reply("Axtarış üçün əvvəl ixtisas əlavə edin. Məsələn: /ixtisas musiqi müəllimi");
-      return;
-    }
+      // A stopped user's search would run to nothing, and with no stored scrape it would scrape
+      // every board live, so it is refused before the cooldown is claimed.
+      const active = await listActiveUsersWithFields(ctx.env.DB, telegramId);
 
-    const limit = await checkManualSearchLimit(ctx.env.DB, telegramId);
+      if (active.length === 0) {
+        await ctx.reply("Bildirişlər dayandırılıb. Axtarış etmək üçün əvvəlcə /start yazın.");
+        return;
+      }
 
-    if (!limit.allowed) {
-      await ctx.reply(`Manual axtarışı ${limit.retryAfterSeconds} saniyədən sonra yenidən işə sala bilərsiniz.`);
-      return;
-    }
+      const limit = await claimManualSearch(ctx.env.DB, telegramId);
 
-    await recordManualSearch(ctx.env.DB, telegramId);
-    await ctx.reply("Axtarış başladı, bir az gözləyin...");
+      if (!limit.allowed) {
+        await ctx.reply(
+          `Manual axtarışı ${limit.retryAfterSeconds} saniyədən sonra yenidən işə sala bilərsiniz.`,
+        );
+        return;
+      }
 
-    // The webhook must answer Telegram within seconds, so the search runs on
-    // after the response instead of inside it and reports its own result.
-    ctx.env.waitUntil(search(ctx, telegramId));
-  });
+      await ctx.reply("Axtarış başladı, bir az gözləyin...");
+
+      // The webhook must answer Telegram within seconds, so the search runs on
+      // after the response instead of inside it and reports its own result.
+      ctx.env.waitUntil(search(ctx, telegramId));
+    }),
+  );
 }
 
 async function search(ctx: BotContext, telegramId: number): Promise<void> {

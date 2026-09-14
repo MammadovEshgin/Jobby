@@ -1,42 +1,61 @@
-import type { BotContext, VakansiyaBot } from "../bot";
-import { addField, upsertUser } from "../db/users";
+import { withSender, type JobbyBot } from "./context";
+import { MAX_FIELDS_PER_USER, addField, listActiveUsersWithFields, upsertUser } from "../db/users";
 import { normalize } from "../matching/normalize";
+import { commandArgument } from "./argument";
 
-export function registerIxtisasCommand(bot: VakansiyaBot): void {
-  bot.command("ixtisas", async (ctx: BotContext) => {
-    if (ctx.from === undefined) {
-      await ctx.reply("İstifadəçi məlumatı oxunmadı. Zəhmət olmasa yenidən yoxlayın.");
-      return;
-    }
+/** Long enough for any real job title, short enough that the list of fields stays readable. */
+const MAX_FIELD_LENGTH = 100;
 
-    const rawField = commandArgument(ctx.message?.text ?? "", "ixtisas");
+export function registerIxtisasCommand(bot: JobbyBot): void {
+  bot.command(
+    "ixtisas",
+    withSender(async (ctx) => {
+      const rawField = commandArgument(ctx.message?.text ?? "", "ixtisas");
 
-    if (rawField.length === 0) {
-      await ctx.reply("İxtisas əlavə etmək üçün belə yazın:\n/ixtisas backend developer");
-      return;
-    }
+      if (rawField.length === 0) {
+        await ctx.reply("İxtisas əlavə etmək üçün belə yazın:\n/ixtisas backend developer");
+        return;
+      }
 
-    const field = normalize(rawField);
+      if (rawField.length > MAX_FIELD_LENGTH) {
+        await ctx.reply(`İxtisas ${MAX_FIELD_LENGTH} simvoldan uzun ola bilməz.`);
+        return;
+      }
 
-    if (field.length === 0) {
-      await ctx.reply("İxtisas boş ola bilməz. Məsələn: /ixtisas mühasib");
-      return;
-    }
+      const field = normalize(rawField);
 
-    await upsertUser(ctx.env.DB, {
-      telegramId: ctx.from.id,
-      username: ctx.from.username ?? null,
-    });
-    await addField(ctx.env.DB, {
-      telegramId: ctx.from.id,
-      field,
-      rawField,
-    });
+      if (field.length === 0) {
+        await ctx.reply("İxtisas boş ola bilməz. Məsələn: /ixtisas mühasib");
+        return;
+      }
 
-    await ctx.reply(`İxtisas əlavə edildi: ${rawField}\nSiyahını görmək üçün /ixtisaslar yazın.`);
-  });
-}
+      await upsertUser(ctx.env.DB, {
+        telegramId: ctx.from.id,
+        username: ctx.from.username ?? null,
+      });
+      const added = await addField(ctx.env.DB, {
+        telegramId: ctx.from.id,
+        field,
+        rawField,
+      });
 
-function commandArgument(text: string, command: string): string {
-  return text.replace(new RegExp(`^/${command}(?:@\\w+)?\\s*`, "i"), "").trim();
+      if (!added) {
+        await ctx.reply(
+          `Ən çox ${MAX_FIELDS_PER_USER} ixtisas izləyə bilərsiniz. Yenisini əlavə etmək üçün birini /sil ilə silin.`,
+        );
+        return;
+      }
+
+      // Adding a field does not turn notifications back on; a stopped user is told how to.
+      const active = await listActiveUsersWithFields(ctx.env.DB, ctx.from.id);
+      const stoppedNote =
+        active.length === 0
+          ? "\nBildirişlər dayandırılıb. Yenidən aktiv etmək üçün /start yazın."
+          : "";
+
+      await ctx.reply(
+        `İxtisas əlavə edildi: ${rawField}\nSiyahını görmək üçün /ixtisaslar yazın.${stoppedNote}`,
+      );
+    }),
+  );
 }

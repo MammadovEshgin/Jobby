@@ -1,3 +1,5 @@
+import { unixSeconds } from "./time";
+
 export interface UserFieldRecord {
   telegramId: number;
   field: string;
@@ -27,6 +29,9 @@ export interface UpsertUserInput {
   username?: string | null;
 }
 
+/** Each followed field is matched against every vacancy on every hourly run, so the list is bounded. */
+export const MAX_FIELDS_PER_USER = 20;
+
 export interface AddFieldInput {
   telegramId: number;
   field: string;
@@ -34,24 +39,25 @@ export interface AddFieldInput {
 }
 
 export async function upsertUser(db: D1Database, input: UpsertUserInput): Promise<void> {
-  const now = unixSeconds();
-  const username = input.username ?? null;
-
   await db
     .prepare(
       `
       INSERT INTO users (telegram_id, username, created_at, is_active)
       VALUES (?, ?, ?, 1)
       ON CONFLICT(telegram_id) DO UPDATE SET
-        username = excluded.username,
-        is_active = 1
+        username = excluded.username
       `,
     )
-    .bind(input.telegramId, username, now)
+    .bind(input.telegramId, input.username ?? null, unixSeconds())
     .run();
 }
 
-export async function addField(db: D1Database, input: AddFieldInput): Promise<void> {
+/**
+ * Stores a field, or refreshes the text of one the user already follows. A new field is refused once
+ * the user follows `MAX_FIELDS_PER_USER`; the count is checked inside the same write, so two
+ * overlapping additions cannot both slip past the limit. Resolves to whether the field was stored.
+ */
+export async function addField(db: D1Database, input: AddFieldInput): Promise<boolean> {
   const field = input.field.trim();
   const rawField = input.rawField.trim();
 
@@ -59,20 +65,37 @@ export async function addField(db: D1Database, input: AddFieldInput): Promise<vo
     throw new Error("Field must not be empty.");
   }
 
-  await db
+  const result = await db
     .prepare(
       `
       INSERT INTO user_fields (telegram_id, field, raw_field, created_at)
-      VALUES (?, ?, ?, ?)
+      SELECT ?, ?, ?, ?
+      WHERE (SELECT COUNT(*) FROM user_fields WHERE telegram_id = ?) < ?
+        OR EXISTS (SELECT 1 FROM user_fields WHERE telegram_id = ? AND field = ?)
       ON CONFLICT(telegram_id, field) DO UPDATE SET
         raw_field = excluded.raw_field
       `,
     )
-    .bind(input.telegramId, field, rawField, unixSeconds())
+    .bind(
+      input.telegramId,
+      field,
+      rawField,
+      unixSeconds(),
+      input.telegramId,
+      MAX_FIELDS_PER_USER,
+      input.telegramId,
+      field,
+    )
     .run();
+
+  return result.meta.changes > 0;
 }
 
-export async function removeField(db: D1Database, telegramId: number, field: string): Promise<boolean> {
+export async function removeField(
+  db: D1Database,
+  telegramId: number,
+  field: string,
+): Promise<boolean> {
   const result = await db
     .prepare(
       `
@@ -102,7 +125,11 @@ export async function listFields(db: D1Database, telegramId: number): Promise<Us
   return result.results.map(mapUserFieldRow);
 }
 
-export async function setActive(db: D1Database, telegramId: number, isActive: boolean): Promise<void> {
+export async function setActive(
+  db: D1Database,
+  telegramId: number,
+  isActive: boolean,
+): Promise<void> {
   await db
     .prepare(
       `
@@ -135,13 +162,11 @@ export async function listActiveUsersWithFields(
   const users = new Map<number, ActiveUserWithFields>();
 
   for (const row of result.results) {
-    const existing =
-      users.get(row.telegram_id) ??
-      {
-        telegramId: row.telegram_id,
-        username: row.username,
-        fields: [],
-      };
+    const existing = users.get(row.telegram_id) ?? {
+      telegramId: row.telegram_id,
+      username: row.username,
+      fields: [],
+    };
 
     existing.fields.push(mapUserFieldRow(row));
     users.set(row.telegram_id, existing);
@@ -157,8 +182,4 @@ function mapUserFieldRow(row: UserFieldRow): UserFieldRecord {
     rawField: row.raw_field,
     createdAt: row.created_at,
   };
-}
-
-function unixSeconds(): number {
-  return Math.floor(Date.now() / 1000);
 }

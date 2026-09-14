@@ -2,9 +2,11 @@ import { parse } from "node-html-parser";
 
 import type { RawVacancy, Scraper } from "./types";
 import { dedupeVacanciesByUrl } from "./dedupe";
-import { fetchText } from "../utils/fetch";
-import { logInfo } from "../utils/log";
+import { fetchListingPages, userAgent } from "./pages";
+import { elementText, optionalText } from "./text";
+import { vacancyUrl } from "./url";
 
+const SOURCE = "hellojob.az";
 const BASE_URL = "https://www.hellojob.az";
 const LISTING_URLS = [
   `${BASE_URL}/vakansiyalar`,
@@ -12,81 +14,42 @@ const LISTING_URLS = [
   `${BASE_URL}/vakansiyalar?page=3`,
   `${BASE_URL}/vakansiyalar?page=4`,
 ];
-const USER_AGENT = "Mozilla/5.0 (compatible; VakansiyaBot/0.1; +https://www.hellojob.az)";
+const HEADERS = {
+  "User-Agent": userAgent(BASE_URL),
+  Accept: "text/html",
+};
 
 export const helloJobAzScraper: Scraper = {
-  name: "hellojob.az",
+  name: SOURCE,
   async fetch(): Promise<RawVacancy[]> {
-    const results = await Promise.allSettled(
-      LISTING_URLS.map((url) =>
-        fetchText(url, {
-          timeoutMs: 10_000,
-          headers: {
-            "User-Agent": USER_AGENT,
-            Accept: "text/html",
-          },
-        }),
-      ),
-    );
-    const pages: string[] = [];
-
-    for (const [index, result] of results.entries()) {
-      if (result.status === "fulfilled") {
-        pages.push(result.value);
-        continue;
-      }
-
-      logInfo("scraper_page_skipped", {
-        site: "hellojob.az",
-        url: LISTING_URLS[index],
-        reason: result.reason instanceof Error ? result.reason.message : "Unknown error",
-      });
-    }
-
-    if (pages.length === 0) {
-      throw results.find((result) => result.status === "rejected")?.reason ?? new Error("No hellojob.az pages fetched.");
-    }
+    const pages = await fetchListingPages(SOURCE, LISTING_URLS, HEADERS);
 
     return dedupeVacanciesByUrl(pages.flatMap((html) => parseHelloJobAzVacancies(html)));
   },
 };
 
 export function parseHelloJobAzVacancies(html: string): RawVacancy[] {
-  const root = parse(html);
   const vacancies: RawVacancy[] = [];
-  const seenUrls = new Set<string>();
 
-  for (const link of root.querySelectorAll("a.vacancies__body")) {
-    const href = link.getAttribute("href");
-    const title = cleanText(link.querySelector(".vacancies__title")?.text);
-    const company = cleanText(link.querySelector(".vacancies__company")?.text);
-    const infoItems = link.querySelectorAll(".vacancies__info__item").map((item) => cleanText(item.text));
-    const postedAt = infoItems.at(-1);
+  for (const link of parse(html).querySelectorAll("a.vacancies__body")) {
+    const url = vacancyUrl(link.getAttribute("href"), BASE_URL);
+    const title = elementText(link.querySelector(".vacancies__title"));
+    const company = elementText(link.querySelector(".vacancies__company"));
+    const infoItems = link.querySelectorAll(".vacancies__info__item");
 
-    if (href === undefined || title.length === 0 || company.length === 0) {
+    if (url === undefined || title.length === 0 || company.length === 0) {
       continue;
     }
 
-    const url = new URL(href, BASE_URL).toString();
-
-    if (seenUrls.has(url)) {
-      continue;
-    }
-
-    seenUrls.add(url);
     vacancies.push({
       title,
       company,
       location: "",
       url,
-      source: "hellojob.az",
-      postedAt: postedAt?.length === 0 ? undefined : postedAt,
+      source: SOURCE,
+      postedAt: optionalText(infoItems.at(-1)?.text),
     });
   }
 
-  return vacancies;
-}
-
-function cleanText(value: string | undefined): string {
-  return (value ?? "").replace(/\s+/g, " ").trim();
+  return dedupeVacanciesByUrl(vacancies);
 }

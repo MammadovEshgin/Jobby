@@ -1,4 +1,4 @@
-import { analyze, tokensEquivalent, type Analysis } from "./analyze";
+import { analyze, tokensEquivalent, type Analysis, type Requirement } from "./analyze";
 import { normalize } from "./normalize";
 
 export interface MatchResult {
@@ -39,7 +39,9 @@ export function matchCompiled(title: CompiledText, fields: readonly CompiledText
   for (const field of fields) {
     const result = matchOne(title, field);
 
-    if (result.matched && result.score > best.score) {
+    // `best.matched` first: a crowded title can score at or below zero, and
+    // comparing scores alone would throw that match away as if it never matched.
+    if (result.matched && (!best.matched || result.score > best.score)) {
       best = result;
     }
   }
@@ -53,7 +55,8 @@ export function matchTitle(title: string, fields: string | readonly string[]): M
 }
 
 function matchOne(title: CompiledText, field: CompiledText): MatchResult {
-  if (title.analysis.tokens.length === 0 || field.analysis.requirements.length === 0) {
+  // A field with nothing to demand would otherwise match every vacancy on the board.
+  if (field.analysis.requirements.length === 0) {
     return NO_MATCH;
   }
 
@@ -66,14 +69,10 @@ function matchOne(title: CompiledText, field: CompiledText): MatchResult {
   return { matched: true, score: score(title, field) };
 }
 
-function satisfies(title: Analysis, requirement: string): boolean {
-  const value = requirement.slice(2);
-
-  if (requirement.startsWith("c:")) {
-    return title.concepts.has(value);
-  }
-
-  return title.tokens.some((token) => tokensEquivalent(token, value));
+function satisfies(title: Analysis, requirement: Requirement): boolean {
+  return requirement.kind === "concept"
+    ? title.concepts.has(requirement.id)
+    : title.tokens.some((token) => tokensEquivalent(token, requirement.token));
 }
 
 function score(title: CompiledText, field: CompiledText): number {

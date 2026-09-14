@@ -5,7 +5,6 @@ export interface RawVacancy {
   url: string;
   source: string;
   postedAt?: string;
-  description?: string;
 }
 
 export interface Scraper {

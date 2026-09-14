@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { normalize, tokenize } from "../src/matching/normalize";
+import { normalize, tokenize } from "../../src/matching/normalize";
 
 describe("normalize", () => {
   it("folds Azerbaijani characters and lowercases text", () => {
@@ -11,6 +11,20 @@ describe("normalize", () => {
 
   it("trims and collapses punctuation and whitespace", () => {
     expect(normalize("  Backend / Full-stack   Developer!! ")).toBe("backend full stack developer");
+  });
+
+  it("keeps digits and letters of other alphabets", () => {
+    expect(normalize("1C Mühasib (Программист)")).toBe("1c muhasib программист");
+  });
+
+  it("returns an empty string when nothing is a letter or a digit", () => {
+    expect(normalize(" -- // ")).toBe("");
+  });
+
+  it("folds decomposed letters exactly like precomposed ones", () => {
+    const precomposed = "İnformasiya Texnologiyaları üzrə Mütəxəssis";
+
+    expect(normalize(precomposed.normalize("NFD"))).toBe(normalize(precomposed));
   });
 });
 

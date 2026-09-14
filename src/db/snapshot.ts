@@ -1,4 +1,5 @@
 import type { RawVacancy } from "../scrapers/types";
+import { cutoffDaysAgo, unixSeconds } from "./time";
 
 /** A scraped vacancy plus the fingerprint used to deduplicate and track it. */
 export interface SnapshotVacancy {
@@ -25,7 +26,10 @@ const BATCH_SIZE = 50;
  * table instead of scraping, which keeps a manual search well inside the
  * webhook budget and spares the job boards a burst of traffic per user.
  */
-export async function saveSnapshot(db: D1Database, vacancies: readonly SnapshotVacancy[]): Promise<void> {
+export async function saveSnapshot(
+  db: D1Database,
+  vacancies: readonly SnapshotVacancy[],
+): Promise<void> {
   if (vacancies.length === 0) {
     return;
   }
@@ -45,24 +49,29 @@ export async function saveSnapshot(db: D1Database, vacancies: readonly SnapshotV
 
   for (let start = 0; start < vacancies.length; start += BATCH_SIZE) {
     await db.batch(
-      vacancies.slice(start, start + BATCH_SIZE).map(({ vacancy, fingerprint }) =>
-        statement.bind(
-          fingerprint,
-          vacancy.title,
-          vacancy.company,
-          vacancy.location,
-          vacancy.url,
-          vacancy.source,
-          vacancy.postedAt ?? null,
-          now,
+      vacancies
+        .slice(start, start + BATCH_SIZE)
+        .map(({ vacancy, fingerprint }) =>
+          statement.bind(
+            fingerprint,
+            vacancy.title,
+            vacancy.company,
+            vacancy.location,
+            vacancy.url,
+            vacancy.source,
+            vacancy.postedAt ?? null,
+            now,
+          ),
         ),
-      ),
     );
   }
 }
 
 /** Vacancies still listed by their source within the given window. */
-export async function listSnapshot(db: D1Database, maxAgeSeconds: number): Promise<SnapshotVacancy[]> {
+export async function listSnapshot(
+  db: D1Database,
+  maxAgeSeconds: number,
+): Promise<SnapshotVacancy[]> {
   const cutoff = unixSeconds() - Math.floor(maxAgeSeconds);
   const result = await db
     .prepare(
@@ -91,7 +100,7 @@ export async function listSnapshot(db: D1Database, maxAgeSeconds: number): Promi
 
 /** Drops vacancies no source has listed for a while; they are almost certainly filled. */
 export async function pruneSnapshotOlderThan(db: D1Database, days: number): Promise<number> {
-  const cutoff = unixSeconds() - Math.floor(days * 24 * 60 * 60);
+  const cutoff = cutoffDaysAgo(days);
   const result = await db
     .prepare(
       `
@@ -103,8 +112,4 @@ export async function pruneSnapshotOlderThan(db: D1Database, days: number): Prom
     .run();
 
   return result.meta.changes;
-}
-
-function unixSeconds(): number {
-  return Math.floor(Date.now() / 1000);
 }
