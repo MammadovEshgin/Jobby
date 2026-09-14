@@ -1,7 +1,8 @@
-import { fieldListKeyboard, withSender, type VakansiyaBot } from "../bot";
+import { withSender, type JobbyBot } from "./context";
+import { fieldListKeyboard } from "./field-buttons";
 import { listFields } from "../db/users";
 
-export function registerIxtisaslarCommand(bot: VakansiyaBot): void {
+export function registerIxtisaslarCommand(bot: JobbyBot): void {
   bot.command(
     "ixtisaslar",
     withSender(async (ctx) => {

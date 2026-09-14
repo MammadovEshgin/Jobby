@@ -31,7 +31,7 @@ review, so keep it short and delete lines once tooling enforces them.
   analyzer strips suffixes by walking prefixes, so an inflected entry is unreachable.
 - Precision beats recall: a vacancy offered to a user who follows nothing like it is a bug, not a
   threshold to tune. Fix it with a failing test that locks the property (see the technology versus
-  non-technology sweep in `tests/match.test.ts`), not only the reported title.
+  non-technology sweep in `tests/matching/match.test.ts`), not only the reported title.
 - `fingerprint()` output is stored in D1 as the identity of every delivered vacancy. Changing it by
   one byte re-sends everything to everyone; `tests/utils/fingerprint.test.ts` holds golden hashes.
 

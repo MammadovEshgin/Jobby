@@ -1,7 +1,7 @@
-import { withSender, type VakansiyaBot } from "../bot";
+import { withSender, type JobbyBot } from "./context";
 import { setActive } from "../db/users";
 
-export function registerStopCommand(bot: VakansiyaBot): void {
+export function registerStopCommand(bot: JobbyBot): void {
   bot.command(
     "stop",
     withSender(async (ctx) => {

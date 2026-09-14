@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { CONCEPTS } from "../src/matching/lexicon";
-import { compile, compileAll, matchCompiled, matchTitle } from "../src/matching/match";
+import { CONCEPTS } from "../../src/matching/lexicon";
+import { compile, compileAll, matchCompiled, matchTitle } from "../../src/matching/match";
 
 function matches(title: string, field: string): boolean {
   return matchTitle(title, field).matched;

@@ -1,6 +1,6 @@
 import { vi } from "vitest";
 
-import type { BotContext, VakansiyaBot } from "../../src/bot";
+import type { BotContext, JobbyBot } from "../../src/commands/context";
 
 type CommandHandler = (ctx: BotContext) => Promise<void>;
 
@@ -11,17 +11,14 @@ export const FAKE_DB = { label: "fake-d1" } as unknown as D1Database;
  * Runs a register*Command function against a bot that only records what it registers, and
  * returns the handler for one command name. The seam is the handler, not grammY's dispatch.
  */
-export function commandHandler(
-  register: (bot: VakansiyaBot) => void,
-  name: string,
-): CommandHandler {
+export function commandHandler(register: (bot: JobbyBot) => void, name: string): CommandHandler {
   const handlers = new Map<string, CommandHandler>();
 
   register({
     command(command: string, handler: CommandHandler) {
       handlers.set(command, handler);
     },
-  } as unknown as VakansiyaBot);
+  } as unknown as JobbyBot);
 
   const handler = handlers.get(name);
 

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { formatVacancyMessages } from "../src/pipeline/format";
-import type { RawVacancy } from "../src/scrapers/types";
+import { formatVacancyMessages } from "../../src/pipeline/format";
+import type { RawVacancy } from "../../src/scrapers/types";
 
 const vacancy: RawVacancy = {
   title: "Backend Developer",

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { normalize, tokenize } from "../src/matching/normalize";
+import { normalize, tokenize } from "../../src/matching/normalize";
 
 describe("normalize", () => {
   it("folds Azerbaijani characters and lowercases text", () => {

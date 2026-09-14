@@ -1,10 +1,10 @@
-import { withSender, type BotContext, type VakansiyaBot } from "../bot";
+import { withSender, type BotContext, type JobbyBot } from "./context";
 import { claimManualSearch } from "../db/manual-search";
 import { listActiveUsersWithFields, listFields } from "../db/users";
 import { MANUAL_SEARCH_LIMIT, runManualSearch } from "../pipeline/run";
 import { logError, logInfo } from "../utils/log";
 
-export function registerAxtarCommand(bot: VakansiyaBot): void {
+export function registerAxtarCommand(bot: JobbyBot): void {
   bot.command(
     "axtar",
     withSender(async (ctx) => {

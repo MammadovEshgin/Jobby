@@ -1,9 +1,9 @@
-import { withSender, type VakansiyaBot } from "../bot";
+import { withSender, type JobbyBot } from "./context";
 import { removeField } from "../db/users";
 import { normalize } from "../matching/normalize";
 import { commandArgument } from "./argument";
 
-export function registerSilCommand(bot: VakansiyaBot): void {
+export function registerSilCommand(bot: JobbyBot): void {
   bot.command(
     "sil",
     withSender(async (ctx) => {

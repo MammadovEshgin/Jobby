@@ -1,6 +1,6 @@
-import type { VakansiyaBot } from "../bot";
+import type { JobbyBot } from "./context";
 
-export function registerKomekCommand(bot: VakansiyaBot): void {
+export function registerKomekCommand(bot: JobbyBot): void {
   bot.command("komek", async (ctx) => {
     await ctx.reply(
       [

@@ -1,14 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { MANUAL_SEARCH_LIMIT, runManualSearch, runPipeline } from "../src/pipeline/run";
-import type { RawVacancy } from "../src/scrapers/types";
+import { MANUAL_SEARCH_LIMIT, runManualSearch, runPipeline } from "../../src/pipeline/run";
+import type { RawVacancy } from "../../src/scrapers/types";
 
 const { vacancies, scrapeCalls } = vi.hoisted(() => ({
   vacancies: { current: [] as RawVacancy[] },
   scrapeCalls: { count: 0 },
 }));
 
-vi.mock("../src/scrapers", () => ({
+vi.mock("../../src/scrapers", () => ({
   fetchAllVacancies: async () => {
     scrapeCalls.count += 1;
     return vacancies.current;

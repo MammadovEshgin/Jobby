@@ -1,4 +1,4 @@
-import { withSender, type VakansiyaBot } from "../bot";
+import { withSender, type JobbyBot } from "./context";
 import { MAX_FIELDS_PER_USER, addField, listActiveUsersWithFields, upsertUser } from "../db/users";
 import { normalize } from "../matching/normalize";
 import { commandArgument } from "./argument";
@@ -6,7 +6,7 @@ import { commandArgument } from "./argument";
 /** Long enough for any real job title, short enough that the list of fields stays readable. */
 const MAX_FIELD_LENGTH = 100;
 
-export function registerIxtisasCommand(bot: VakansiyaBot): void {
+export function registerIxtisasCommand(bot: JobbyBot): void {
   bot.command(
     "ixtisas",
     withSender(async (ctx) => {

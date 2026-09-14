@@ -165,8 +165,8 @@ The snapshot table is what keeps `/axtar` responsive. A webhook has seconds to a
 npm run typecheck && npm test
 ```
 
-- `match.test.ts` — cross-language pairs, subject and technology discrimination, Azerbaijani suffix forms, scoring order, and a sweep proving no technology term matches an unrelated vacancy.
-- `pipeline.test.ts`, `format.test.ts` — the full run against an in-memory D1 double: no-resend, snapshot reuse, per-user and partial-batch delivery failures, the 60-result cap, the 4096-character split, link scheme and length guards.
+- `matching/` — cross-language pairs, subject and technology discrimination, Azerbaijani suffix forms, scoring order, and a sweep proving no technology term matches an unrelated vacancy.
+- `pipeline/` — the full run against an in-memory D1 double: no-resend, snapshot reuse, per-user and partial-batch delivery failures, the 60-result cap, the 4096-character split, link scheme and length guards.
 - `scrapers/` — each board parsed from a saved fixture, so a redesign shows up as a failing test rather than a silent zero, plus the never-throw contract and the page fan-out.
 - `db/` — every D1 query against a table-semantics double, including the re-delivery and cooldown-race fixes.
 - `commands/`, `bot/`, `utils/` — each command at its handler seam, the Worker entry and error boundary, fetch retry policy, log shape, and golden fingerprint hashes.
