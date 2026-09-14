@@ -62,7 +62,7 @@ Orchestrator tasks for the Finish phase, not owned by any slice:
 | 3 | `src/pipeline` + `tests/pipeline,format` | 4 | 624 | 8 | 9 | 0 | direct (13) | done b02d51e · fix ac2dffa · net +5 prod · CC 8 → 7 · tests 13 → 28 |
 | 4 | `src/commands` | 7 | 216 | 7 | 12 | 7 | none | done 2c45ffb · fix none (0 provable in scope) · net -2 prod · tests 0 → 33 |
 | 5 | `src/db` | 4 | 411 | 5 | 8 | 1 | none | done 4370349 · fix 77eaf30 + c915667 · net -8 prod · tests 0 → 66 |
-| 6 | `src/utils` + `scripts` + `tests/fingerprint` | 5 | 211 | 7 | 6 | 0 | partial (1/3) | done PENDING8 · net -57 prod · CC 7 → 6 · tests 3 → 32 |
+| 6 | `src/utils` + `scripts` + `tests/fingerprint` | 5 | 211 | 7 | 6 | 0 | partial (1/3) | done c4f3028 · fix PENDING9 · net -57 prod · CC 7 → 6 · tests 3 → 42 |
 | 7 | `src/bot.ts` + `src/index.ts` | 2 | 149 | 4 | 6 | 2 | none | pending |
 | 8 | `README.md`, `AGENTS.md`, `CODING_STANDARDS.md` | 3 | 298 | n/a | — | 0 | n/a | pending |
 
@@ -411,3 +411,31 @@ Deleted with review: `dedupeVacanciesByFingerprint` had no production caller sin
 (the dedupe that runs is `toCandidates` in `run.ts`, still tested) and zero references after
 removal; its one test went with it. `fingerprint()` itself is byte-identical, and 10 golden hashes
 computed independently with `node:crypto` now lock its output.
+
+### Slice 6 — audit findings
+
+Fixed (3, each proven red-first):
+- `fetch.ts` retry policy. A 4xx other than 408/429 now fails after 1 request instead of 3
+  (smartjob.az's steady 403 still reaches its caller as `FetchHttpError{status:403}`). 408/429/5xx
+  retry after a jittered, growing pause (0.5-1 s, then 1-2 s). Network errors and timeouts retry at
+  once. The whole call ends at `timeoutMs + 5 s` (15 s for every caller), so a dead host holds its
+  board 15 s instead of 30 s. No caller needed a change; thrown types are unchanged.
+- `log.ts` — a `data.event` key could overwrite the event name, so a log line could misreport what
+  happened. No current caller passes one; fixed before one does.
+- `scripts/set-webhook.ts` — a `.dev.vars` line without `=` produced a key missing its last
+  character with the whole line as its value, which could override a real secret that set-webhook
+  then registers with Telegram. The parser moved unchanged into a pure `scripts/dev-vars.ts` and
+  now skips such lines. Proven against the pre-fix filter, not only against a missing import.
+  The script was bundled with esbuild to check it, never run; `.dev.vars` never read.
+
+**Needs a decision (added to the owner's list):**
+- **Subrequest budget.** If every board fails in a retryable way, one scheduled run's scrape sends
+  20 x 3 = 60 subrequests, before and after this fix. Cloudflare's documented per-invocation limit
+  is 50 on the Free plan and 10,000 on Paid (developers.cloudflare.com/workers/platform/limits); D1
+  calls and redirect hops count too. The repo does not say which plan this runs on. Options: lower
+  `DEFAULT_RETRIES` to 1, or a per-run retry budget in `src/scrapers`.
+- **Response body cap.** `response.text()` reads an untrusted body whole, in the one isolate that
+  runs all seven boards and delivery. The largest recorded fixture is 396 KB. A byte cap is a new
+  failure mode, so its size is a product call.
+- Network-error and timeout retries still fire without a pause, so several pages of one board that
+  time out together retry in the same instant. Kept deliberately; four existing tests assert it.

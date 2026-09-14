@@ -1,5 +1,7 @@
 import { readFileSync } from "node:fs";
 
+import { parseDevVars } from "./dev-vars";
+
 const webhookUrl = process.argv[2] ?? process.env.WEBHOOK_URL;
 const vars = loadDevVars();
 const botToken = process.env.BOT_TOKEN ?? vars.BOT_TOKEN;
@@ -40,21 +42,7 @@ console.log("Telegram webhook configured.");
 
 function loadDevVars(): Record<string, string> {
   try {
-    return Object.fromEntries(
-      readFileSync(".dev.vars", "utf8")
-        .split(/\r?\n/)
-        .map((line) => line.trim())
-        .filter((line) => line.length > 0 && !line.startsWith("#"))
-        .map((line) => {
-          const index = line.indexOf("=");
-          const key = line.slice(0, index).trim();
-          const value = line
-            .slice(index + 1)
-            .trim()
-            .replace(/^"(.*)"$/, "$1");
-          return [key, value];
-        }),
-    );
+    return parseDevVars(readFileSync(".dev.vars", "utf8"));
   } catch {
     return {};
   }

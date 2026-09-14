@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 
 import { FetchHttpError, fetchText } from "../../src/utils/fetch";
 
@@ -29,6 +29,14 @@ function track(request: Promise<string>): { outcome: Promise<unknown>; isSettled
     },
   );
   return { outcome, isSettled: () => settled };
+}
+
+/** Pins the jitter so every pause has one exact length; the spy is restored when the test ends. */
+function pinRandom(value: number): void {
+  const random = vi.spyOn(Math, "random").mockReturnValue(value);
+  onTestFinished(() => {
+    random.mockRestore();
+  });
 }
 
 beforeEach(() => {
@@ -79,8 +87,8 @@ describe("fetchText", () => {
     await expect(request.outcome).resolves.toMatchObject({ name: "TypeError", message: "third" });
   });
 
-  it.each([400, 403, 404, 429, 500, 503])(
-    "retries HTTP %i like any other failure and rejects with FetchHttpError",
+  it.each([400, 403, 404])(
+    "fails at once on HTTP %i, which no retry can fix, with FetchHttpError",
     async (status) => {
       fetchMock.mockImplementation(() => Promise.resolve(new Response(null, { status })));
 
@@ -93,11 +101,70 @@ describe("fetchText", () => {
         url: LISTING_URL,
         message: `Fetch failed with HTTP ${status} for ${LISTING_URL}`,
       });
-      expect(fetchMock).toHaveBeenCalledTimes(3);
+      expect(fetchMock).toHaveBeenCalledOnce();
     },
   );
 
-  it("aborts each attempt after 10 s, so a host that never answers holds the caller 30 s", async () => {
+  it.each([408, 429, 500, 503])(
+    "retries HTTP %i only after a pause, then rejects with FetchHttpError",
+    async (status) => {
+      fetchMock.mockImplementation(() => Promise.resolve(new Response(null, { status })));
+
+      const request = track(fetchText(LISTING_URL));
+
+      await vi.advanceTimersByTimeAsync(0);
+      expect(fetchMock).toHaveBeenCalledOnce();
+      // The two pauses are under 1 s and under 2 s whatever the jitter draws.
+      await vi.advanceTimersByTimeAsync(3_000);
+      expect(fetchMock).toHaveBeenCalledTimes(3);
+      const error = await request.outcome;
+      expect(error).toBeInstanceOf(FetchHttpError);
+      expect(error).toMatchObject({
+        name: "FetchHttpError",
+        status,
+        url: LISTING_URL,
+        message: `Fetch failed with HTTP ${status} for ${LISTING_URL}`,
+      });
+    },
+  );
+
+  it.each([
+    [0, 500, 1_000],
+    [0.5, 750, 1_500],
+  ])(
+    "with the jitter drawing %s, pauses %i ms and then %i ms before retrying HTTP 503",
+    async (random, firstPause, secondPause) => {
+      pinRandom(random);
+      fetchMock.mockImplementation(() => Promise.resolve(new Response(null, { status: 503 })));
+
+      const request = track(fetchText(LISTING_URL));
+
+      await vi.advanceTimersByTimeAsync(firstPause - 1);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      await vi.advanceTimersByTimeAsync(secondPause - 1);
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(fetchMock).toHaveBeenCalledTimes(3);
+      await expect(request.outcome).resolves.toBeInstanceOf(FetchHttpError);
+    },
+  );
+
+  it("stops retrying at the first HTTP failure no retry can fix", async () => {
+    fetchMock
+      .mockResolvedValueOnce(new Response(null, { status: 503 }))
+      .mockResolvedValueOnce(new Response(null, { status: 404 }));
+
+    const request = track(fetchText(LISTING_URL));
+    await vi.advanceTimersByTimeAsync(1_000);
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(request.isSettled()).toBe(true);
+    await expect(request.outcome).resolves.toMatchObject({ name: "FetchHttpError", status: 404 });
+  });
+
+  it("aborts an attempt after 10 s and gives up 15 s after the call, so a host that never answers holds the caller 15 s", async () => {
     fetchMock.mockImplementation(neverAnswers);
 
     const request = track(fetchText(LISTING_URL));
@@ -106,13 +173,42 @@ describe("fetchText", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
     await vi.advanceTimersByTimeAsync(1);
     expect(fetchMock).toHaveBeenCalledTimes(2);
-    await vi.advanceTimersByTimeAsync(10_000);
-    expect(fetchMock).toHaveBeenCalledTimes(3);
-    await vi.advanceTimersByTimeAsync(9_999);
+    await vi.advanceTimersByTimeAsync(4_999);
     expect(request.isSettled()).toBe(false);
     await vi.advanceTimersByTimeAsync(1);
     expect(request.isSettled()).toBe(true);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
     await expect(request.outcome).resolves.toMatchObject({ name: "AbortError" });
+  });
+
+  it("gives up timeoutMs plus 5 s after the call, however many retries are left", async () => {
+    fetchMock.mockImplementation(neverAnswers);
+
+    const request = track(fetchText(LISTING_URL, { timeoutMs: 2_000, retries: 5 }));
+
+    await vi.advanceTimersByTimeAsync(6_999);
+    expect(request.isSettled()).toBe(false);
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(request.isSettled()).toBe(true);
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+    await expect(request.outcome).resolves.toMatchObject({ name: "AbortError" });
+  });
+
+  it("cuts a pause short when the call's time runs out and rejects with the last HTTP failure", async () => {
+    pinRandom(0);
+    fetchMock.mockImplementation(() => Promise.resolve(new Response(null, { status: 503 })));
+
+    const request = track(fetchText(LISTING_URL, { retries: 10 }));
+
+    // Pauses of 0.5, 1, 2, 4 and 8 s would put a sixth attempt at 15.5 s, past the 15 s budget.
+    await vi.advanceTimersByTimeAsync(14_999);
+    expect(request.isSettled()).toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(request.isSettled()).toBe(true);
+    expect(fetchMock).toHaveBeenCalledTimes(5);
+    await expect(request.outcome).resolves.toMatchObject({ name: "FetchHttpError", status: 503 });
+    expect(vi.getTimerCount()).toBe(0);
   });
 
   it("applies the caller's timeoutMs to each attempt", async () => {

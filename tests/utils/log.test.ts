@@ -33,9 +33,26 @@ describe("logInfo", () => {
 
     expect(stdout).toEqual([['{"event":"run_started"}']]);
   });
+
+  it("keeps its event name when a field is also called event", () => {
+    logInfo("scraper_complete", { event: "run_started", site: "busy.az" });
+
+    expect(stdout).toEqual([['{"event":"scraper_complete","site":"busy.az"}']]);
+  });
 });
 
 describe("logError", () => {
+  it("keeps its event name when a field is also called event", () => {
+    logError("delivery_failed", new Error("chat not found"), {
+      event: "pipeline_complete",
+      telegramId: 7,
+    });
+
+    expect(stderr).toEqual([
+      ['{"event":"delivery_failed","telegramId":7,"message":"chat not found"}'],
+    ]);
+  });
+
   it("writes the event, its fields and the error message to stderr as one JSON line", () => {
     logError("scraper_failed", new Error("HTTP 500"), { site: "jobsearch.az", found: 0 });
 
