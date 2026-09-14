@@ -61,8 +61,8 @@ Orchestrator tasks for the Finish phase, not owned by any slice:
 | 2 | `src/matching` + `tests/match,normalize` | 6 | 1,355 | 6 | 8 | 0 | direct + strong (56) | done dc4c529 · fix 5f5b30a · net +2 prod · CC 6 → 6 · tests 56 → 71 |
 | 3 | `src/pipeline` + `tests/pipeline,format` | 4 | 624 | 8 | 9 | 0 | direct (13) | done b02d51e · fix ac2dffa · net +5 prod · CC 8 → 7 · tests 13 → 28 |
 | 4 | `src/commands` | 7 | 216 | 7 | 12 | 7 | none | done 2c45ffb · fix none (0 provable in scope) · net -2 prod · tests 0 → 33 |
-| 5 | `src/db` | 4 | 411 | 5 | 8 | 1 | none | done 4370349 · fix PENDING7 · net -8 prod · tests 0 → 66 |
-| 6 | `src/utils` + `scripts` + `tests/fingerprint` | 5 | 211 | 7 | 6 | 0 | partial (1/3) | pending |
+| 5 | `src/db` | 4 | 411 | 5 | 8 | 1 | none | done 4370349 · fix 77eaf30 + c915667 · net -8 prod · tests 0 → 66 |
+| 6 | `src/utils` + `scripts` + `tests/fingerprint` | 5 | 211 | 7 | 6 | 0 | partial (1/3) | done PENDING8 · net -57 prod · CC 7 → 6 · tests 3 → 32 |
 | 7 | `src/bot.ts` + `src/index.ts` | 2 | 149 | 4 | 6 | 2 | none | pending |
 | 8 | `README.md`, `AGENTS.md`, `CODING_STANDARDS.md` | 3 | 298 | n/a | — | 0 | n/a | pending |
 
@@ -373,8 +373,8 @@ Miniflare/workerd SQLite, because the fake D1 cannot see them — not run agains
   "later of delivery and last sighting"; renaming it is a schema change.
 - `manual-search.ts:45` — new `claimManualSearch` does check-and-record in one conditional upsert
   (`ON CONFLICT … DO UPDATE … WHERE excluded.last_run_at - last_run_at >= ?`). Real D1: exactly 1
-  of 10 concurrent claims won. **Production still raced until `axtar.ts` switched** — see the
-  follow-up commit after this one.
+  of 10 concurrent claims won. `axtar.ts` switched to it in `c915667`, and `recordManualSearch` was deleted so the
+  race cannot be rebuilt.
 - `snapshot.ts:102` — shared `cutoffDaysAgo` guard in `time.ts` for both prunes; negative or NaN
   windows now refuse instead of deleting every row.
 
@@ -389,3 +389,25 @@ Reported, needs a decision:
 
 Verified, no finding: all 15 statements in `src/db` are `prepare(literal).bind(...)`; the
 `snapshot.ts:42` ON CONFLICT safely keeps the first title/company/source (real D1 confirmed).
+
+### Slice 6 — found, not changed (from the worker)
+
+- `fetch.ts:24-32` — the queued retry policy, now LOCKED by `tests/utils/fetch.test.ts`: three
+  back-to-back attempts with no backoff, HTTP 400/403/404/429/500/503 all retried, 10 s timeout per
+  attempt (a dead host costs 30 s), custom `timeoutMs` also per attempt. Audit candidate.
+- `fetch.ts:32` — a non-Error rejection is replaced by `new Error("Fetch failed.")`, losing the
+  original value. Locked.
+- `fetch.ts:3` — no caller sets `FetchTextOptions.retries`; all five callers pass `timeoutMs: 10_000`,
+  which equals the default. Left: an exported signature, and the retry fix may need it.
+- `log.ts:2,7` — `{ event, ...data }` lets a `data.event` key silently overwrite the event name (not
+  locked, looks like a bug); `logError` replaces a non-Error's text with "Unknown error" (locked).
+- `scripts/set-webhook.ts` — **untestable as written**: importing it runs top-level await, reads
+  `.dev.vars` and calls the live Telegram API. Not touched, not run. Line 49: a `.dev.vars` line
+  without `=` yields a key missing its last character and the whole line as its value.
+- `tests/fingerprint.test.ts` sits at the `tests/` root while every other test mirrors `src/`;
+  structure phase.
+
+Deleted with review: `dedupeVacanciesByFingerprint` had no production caller since `ab9eead`
+(the dedupe that runs is `toCandidates` in `run.ts`, still tested) and zero references after
+removal; its one test went with it. `fingerprint()` itself is byte-identical, and 10 golden hashes
+computed independently with `node:crypto` now lock its output.

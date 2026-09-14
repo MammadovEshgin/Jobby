@@ -26,9 +26,6 @@ export async function fetchText(url: string, options: FetchTextOptions = {}): Pr
       return await fetchTextOnce(url, options);
     } catch (error) {
       lastError = error;
-      if (attempt === retries) {
-        break;
-      }
     }
   }
 
