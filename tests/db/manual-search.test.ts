@@ -1,10 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import {
-  checkManualSearchLimit,
-  claimManualSearch,
-  recordManualSearch,
-} from "../../src/db/manual-search";
+import { checkManualSearchLimit, claimManualSearch } from "../../src/db/manual-search";
 import { createFakeDb } from "./fake-d1";
 
 const NOW = 1_700_000_000;
@@ -89,44 +85,13 @@ describe("checkManualSearchLimit", () => {
   });
 });
 
-describe("recordManualSearch", () => {
-  it("stores the current time for a first search", async () => {
-    const { db, tables, calls } = createFakeDb();
-
-    await recordManualSearch(db, 7);
-
-    expect(tables.manualSearchLog).toEqual([{ telegram_id: 7, last_run_at: NOW }]);
-    expect(calls[0]?.params).toEqual([7, NOW]);
-  });
-
-  it("moves the stored time forward on a later search", async () => {
-    const { db, tables } = createFakeDb({
-      manualSearchLog: [{ telegram_id: 7, last_run_at: NOW - 100 }],
-    });
-
-    at(NOW + 30);
-    await recordManualSearch(db, 7);
-
-    expect(tables.manualSearchLog).toEqual([{ telegram_id: 7, last_run_at: NOW + 30 }]);
-  });
-
-  it("keeps a row per user", async () => {
-    const { db, tables } = createFakeDb();
-
-    await recordManualSearch(db, 7);
-    await recordManualSearch(db, 8);
-
-    expect(tables.manualSearchLog).toHaveLength(2);
-  });
-});
-
 describe("the cooldown as a whole", () => {
-  it("refuses the next search right after one is recorded", async () => {
+  it("refuses the next search right after one is claimed", async () => {
     const { db } = createFakeDb();
 
-    await recordManualSearch(db, 7);
+    await claimManualSearch(db, 7);
 
-    await expect(checkManualSearchLimit(db, 7)).resolves.toEqual({
+    await expect(claimManualSearch(db, 7)).resolves.toEqual({
       allowed: false,
       retryAfterSeconds: 10,
     });
@@ -175,6 +140,15 @@ describe("claimManualSearch", () => {
       retryAfterSeconds: 0,
     });
     expect(tables.manualSearchLog).toEqual([{ telegram_id: 7, last_run_at: NOW }]);
+  });
+
+  it("keeps a row per user", async () => {
+    const { db, tables } = createFakeDb();
+
+    await claimManualSearch(db, 7);
+    await claimManualSearch(db, 8);
+
+    expect(tables.manualSearchLog).toHaveLength(2);
   });
 
   it("binds the cooldown into the write itself", async () => {

@@ -14,29 +14,25 @@ interface SearchResult {
   truncated: boolean;
 }
 
-const { checkManualSearchLimit, recordManualSearch, listFields, runManualSearch, logError } =
-  vi.hoisted(() => ({
-    checkManualSearchLimit: vi.fn(
-      async (): Promise<{ allowed: boolean; retryAfterSeconds: number }> => ({
-        allowed: true,
-        retryAfterSeconds: 0,
-      }),
-    ),
-    recordManualSearch: vi.fn(async (): Promise<void> => undefined),
-    listFields: vi.fn(async (): Promise<UserFieldRecord[]> => []),
-    runManualSearch: vi.fn(async (): Promise<SearchResult> => ({
-      scraped: 0,
-      deduped: 0,
-      usersChecked: 1,
-      messagesSent: 0,
-      vacanciesSent: 0,
-      truncated: false,
-    })),
-    logError: vi.fn((): void => undefined),
-    logInfo: vi.fn((): void => undefined),
-  }));
+const { claimManualSearch, listFields, runManualSearch, logError } = vi.hoisted(() => ({
+  claimManualSearch: vi.fn(async (): Promise<{ allowed: boolean; retryAfterSeconds: number }> => ({
+    allowed: true,
+    retryAfterSeconds: 0,
+  })),
+  listFields: vi.fn(async (): Promise<UserFieldRecord[]> => []),
+  runManualSearch: vi.fn(async (): Promise<SearchResult> => ({
+    scraped: 0,
+    deduped: 0,
+    usersChecked: 1,
+    messagesSent: 0,
+    vacanciesSent: 0,
+    truncated: false,
+  })),
+  logError: vi.fn((): void => undefined),
+  logInfo: vi.fn((): void => undefined),
+}));
 
-vi.mock("../../src/db/manual-search", () => ({ checkManualSearchLimit, recordManualSearch }));
+vi.mock("../../src/db/manual-search", () => ({ claimManualSearch }));
 vi.mock("../../src/db/users", () => ({ listFields }));
 vi.mock("../../src/utils/log", () => ({ logError, logInfo: vi.fn() }));
 vi.mock("../../src/pipeline/run", async (importOriginal) => {
@@ -64,7 +60,7 @@ describe("/axtar", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     listFields.mockResolvedValue(FOLLOWED);
-    checkManualSearchLimit.mockResolvedValue({ allowed: true, retryAfterSeconds: 0 });
+    claimManualSearch.mockResolvedValue({ allowed: true, retryAfterSeconds: 0 });
     runManualSearch.mockResolvedValue(searchResult());
   });
 
@@ -88,26 +84,27 @@ describe("/axtar", () => {
     expect(reply).toHaveBeenCalledWith(
       "Axtarış üçün əvvəl ixtisas əlavə edin. Məsələn: /ixtisas musiqi müəllimi",
     );
-    expect(checkManualSearchLimit).not.toHaveBeenCalled();
+    expect(claimManualSearch).not.toHaveBeenCalled();
     expect(waitUntil).not.toHaveBeenCalled();
   });
 
   it("reports the remaining cooldown and starts nothing", async () => {
-    checkManualSearchLimit.mockResolvedValue({ allowed: false, retryAfterSeconds: 7 });
+    claimManualSearch.mockResolvedValue({ allowed: false, retryAfterSeconds: 7 });
     const handler = commandHandler(registerAxtarCommand, "axtar");
     const { ctx, reply, waitUntil } = fakeContext({ from: { id: 55 }, text: "/axtar" });
 
     await handler(ctx);
 
-    expect(checkManualSearchLimit).toHaveBeenCalledWith(FAKE_DB, 55);
+    expect(claimManualSearch).toHaveBeenCalledWith(FAKE_DB, 55);
     expect(reply).toHaveBeenCalledWith(
       "Manual axtarışı 7 saniyədən sonra yenidən işə sala bilərsiniz.",
     );
-    expect(recordManualSearch).not.toHaveBeenCalled();
     expect(waitUntil).not.toHaveBeenCalled();
   });
 
-  it("records the run, answers at once and searches after the response", async () => {
+  // Two overlapping /axtar must not both start a search, so the cooldown is
+  // checked and started by one atomic claim rather than a read and a write.
+  it("claims the cooldown in one call, answers at once and searches after the response", async () => {
     const handler = commandHandler(registerAxtarCommand, "axtar");
     const { ctx, reply, waitUntil, settleBackgroundWork } = fakeContext({
       from: { id: 55 },
@@ -116,7 +113,8 @@ describe("/axtar", () => {
 
     await handler(ctx);
 
-    expect(recordManualSearch).toHaveBeenCalledWith(FAKE_DB, 55);
+    expect(claimManualSearch).toHaveBeenCalledTimes(1);
+    expect(claimManualSearch).toHaveBeenCalledWith(FAKE_DB, 55);
     expect(reply).toHaveBeenCalledWith("Axtarış başladı, bir az gözləyin...");
     expect(waitUntil).toHaveBeenCalledTimes(1);
 

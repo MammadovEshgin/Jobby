@@ -1,5 +1,5 @@
 import type { BotContext, VakansiyaBot } from "../bot";
-import { checkManualSearchLimit, recordManualSearch } from "../db/manual-search";
+import { claimManualSearch } from "../db/manual-search";
 import { listFields } from "../db/users";
 import { MANUAL_SEARCH_LIMIT, runManualSearch } from "../pipeline/run";
 import { logError, logInfo } from "../utils/log";
@@ -19,7 +19,7 @@ export function registerAxtarCommand(bot: VakansiyaBot): void {
       return;
     }
 
-    const limit = await checkManualSearchLimit(ctx.env.DB, telegramId);
+    const limit = await claimManualSearch(ctx.env.DB, telegramId);
 
     if (!limit.allowed) {
       await ctx.reply(
@@ -28,7 +28,6 @@ export function registerAxtarCommand(bot: VakansiyaBot): void {
       return;
     }
 
-    await recordManualSearch(ctx.env.DB, telegramId);
     await ctx.reply("Axtarış başladı, bir az gözləyin...");
 
     // The webhook must answer Telegram within seconds, so the search runs on
